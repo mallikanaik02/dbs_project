@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shelf & Co. — Bookstore Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══════════════════════════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-mark">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <span class="brand-name">SHELF &amp; CO.</span>
+      <span class="brand-sub">BOOKSTORE MANAGEMENT</span>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a class="nav-item active" data-page="overview" href="#overview">
+      <i data-lucide="layout-dashboard"></i>
+      <span>Overview</span>
+    </a>
+    <a class="nav-item" data-page="books" href="#books">
+      <i data-lucide="book-open"></i>
+      <span>Book Inventory</span>
+    </a>
+    <a class="nav-item" data-page="authors" href="#authors">
+      <i data-lucide="feather"></i>
+      <span>Authors</span>
+    </a>
+    <a class="nav-item" data-page="categories" href="#categories">
+      <i data-lucide="tag"></i>
+      <span>Categories</span>
+    </a>
+    <a class="nav-item" data-page="customers" href="#customers">
+      <i data-lucide="users"></i>
+      <span>Customers</span>
+    </a>
+    <a class="nav-item" data-page="orders" href="#orders">
+      <i data-lucide="shopping-bag"></i>
+      <span>Sales &amp; Orders</span>
+    </a>
+    <a class="nav-item" data-page="reports" href="#reports">
+      <i data-lucide="bar-chart-2"></i>
+      <span>Reports</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <span>Shelf &amp; Co. v1.0</span>
+  </div>
+</aside>
+
+<!-- ═══ MAIN CONTENT ══════════════════════════════════════════ -->
+<div class="main-wrapper">
+
+  <!-- Top Header -->
+  <header class="top-header">
+    <button class="menu-toggle" id="menuToggle">
+      <i data-lucide="menu"></i>
+    </button>
+    <div class="page-heading">
+      <h1 class="page-title" id="pageTitle">Overview</h1>
+      <p class="page-subtitle" id="pageSubtitle">Dashboard summary &amp; quick actions</p>
+    </div>
+    <div class="header-right">
+      <span class="header-date" id="headerDate"></span>
+      <div class="header-actions" id="headerActions"></div>
+    </div>
+  </header>
+
+  <!-- Page Content -->
+  <main class="content" id="mainContent">
+    <!-- Pages rendered by JS -->
+  </main>
+</div>
+
+<!-- ═══ TOAST CONTAINER ═══════════════════════════════════════ -->
+<div id="toastContainer" class="toast-container"></div>
+
+<!-- ═══ MODAL CONTAINER ═══════════════════════════════════════ -->
+<div id="modalOverlay" class="modal-overlay hidden">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modalTitle">Modal</h2>
+      <button class="modal-close" id="modalClose"><i data-lucide="x"></i></button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<!-- ═══ CONFIRM DIALOG ════════════════════════════════════════ -->
+<div id="confirmOverlay" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title" id="confirmTitle">Confirm</h2>
+    </div>
+    <div class="modal-body">
+      <p id="confirmMessage" class="confirm-message"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
+      <button class="btn btn-danger" id="confirmOk">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script src="js/books.js"></script>
+<script src="js/authors.js"></script>
+<script src="js/categories.js"></script>
+<script src="js/customers.js"></script>
+<script src="js/orders.js"></script>
+<script src="js/reports.js"></script>
+</body>
+</html>
+
