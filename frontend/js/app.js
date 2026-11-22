@@ -3,6 +3,18 @@
 
 const API = '/api';
 
+// Safe Lucide helper: ensures app works smoothly even if offline or CDN is delayed
+if (typeof window.lucide === 'undefined') {
+  window.lucide = {
+    createIcons: function() { /* fallback no-op */ }
+  };
+} else {
+  const _origCreateIcons = window.lucide.createIcons;
+  window.lucide.createIcons = function(opts) {
+    try { _origCreateIcons(opts); } catch (e) { /* ignore icon render errors */ }
+  };
+}
+
 // ═══ State ════════════════════════════════════════════════════
 let currentPage = 'overview';
 let modalResolve = null;
@@ -10,13 +22,13 @@ let confirmResolve = null;
 
 // ═══ Page Registry ════════════════════════════════════════════
 const pages = {
-  overview:   { title: 'Overview',         subtitle: 'Dashboard summary & live statistics',  render: renderOverview },
-  books:      { title: 'Book Inventory',   subtitle: 'Manage your complete book collection',  render: renderBooks },
-  authors:    { title: 'Authors',          subtitle: 'Manage author profiles',                render: renderAuthors },
-  categories: { title: 'Categories',       subtitle: 'Manage book categories & genres',       render: renderCategories },
-  customers:  { title: 'Customers',        subtitle: 'Customer profiles & purchase history',  render: renderCustomers },
-  orders:     { title: 'Sales & Orders',   subtitle: 'Sales records & new sale creation',     render: renderOrders },
-  reports:    { title: 'Reports',          subtitle: 'Analytics & database-driven reports',   render: renderReports },
+  overview:   { title: 'Overview',         subtitle: 'Dashboard summary & live statistics',  render: (c) => renderOverview(c) },
+  books:      { title: 'Book Inventory',   subtitle: 'Manage your complete book collection',  render: (c) => renderBooks(c) },
+  authors:    { title: 'Authors',          subtitle: 'Manage author profiles',                render: (c) => renderAuthors(c) },
+  categories: { title: 'Categories',       subtitle: 'Manage book categories & genres',       render: (c) => renderCategories(c) },
+  customers:  { title: 'Customers',        subtitle: 'Customer profiles & purchase history',  render: (c) => renderCustomers(c) },
+  orders:     { title: 'Sales & Orders',   subtitle: 'Sales records & new sale creation',     render: (c) => renderOrders(c) },
+  reports:    { title: 'Reports',          subtitle: 'Analytics & database-driven reports',   render: (c) => renderReports(c) },
 };
 
 // ═══ Router ═══════════════════════════════════════════════════
@@ -362,6 +374,10 @@ async function renderOverview(container) {
 }
 
 function renderDashboardCharts(monthly, catSales, topBooks) {
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js library is not loaded');
+    return;
+  }
   const palette = ['#5C8C6E','#183A32','#C4603A','#8BAA95','#E8C9A0','#2D7A4F','#A05030','#4A7359'];
 
   // Revenue chart

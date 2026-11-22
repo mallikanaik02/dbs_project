@@ -96,7 +96,7 @@ async function loadMonthlyReport(container) {
       // Chart
       const ctx = document.getElementById('chartMonthly')?.getContext('2d');
       if (reportCharts.monthly) reportCharts.monthly.destroy();
-      if (ctx) reportCharts.monthly = new Chart(ctx, {
+      if (typeof Chart !== 'undefined' && ctx) reportCharts.monthly = new Chart(ctx, {
         data: {
           labels: data.map(d => d.month_label),
           datasets: [
@@ -180,7 +180,7 @@ async function loadCategoryReport(container) {
       const palette = ['#5C8C6E','#183A32','#C4603A','#8BAA95','#E8C9A0','#2D7A4F','#A05030','#4A7359'];
       const ctx = document.getElementById('chartCatSales')?.getContext('2d');
       if (reportCharts.catSales) reportCharts.catSales.destroy();
-      if (ctx) reportCharts.catSales = new Chart(ctx, {
+      if (typeof Chart !== 'undefined' && ctx) reportCharts.catSales = new Chart(ctx, {
         type: 'pie',
         data: { labels: data.map(c=>c.category_name), datasets: [{ data: data.map(c=>Number(c.total_revenue||0)), backgroundColor: palette, borderWidth:2, borderColor:'#fff' }] },
         options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{size:11}, boxWidth:14 } } } }
