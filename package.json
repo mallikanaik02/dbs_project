@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node backend/server.js",
     "dev": "nodemon backend/server.js",
-    "setup-db": "mysql -u root -p shelf_and_co < database/schema.sql && mysql -u root -p shelf_and_co < database/seed.sql"
+    "setup-db": "node database/setup.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
