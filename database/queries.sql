@@ -4,6 +4,7 @@
 -- Description: Comprehensive SQL queries demonstrating key
 --              concepts: JOINs, Subqueries, Aggregates,
 --              GROUP BY, HAVING, and complex multi-table JOINs.
+--              Updated for M:N schema (Book_Authors junction table).
 -- =============================================================
 
 USE shelf_and_co;
@@ -16,23 +17,28 @@ USE shelf_and_co;
 
 -- -------------------------------------------------------
 -- Query 1a: Books with their Author names and Category names
--- Concept : INNER JOIN across three tables
---           (Books JOIN Authors JOIN Categories).
+-- Concept : INNER JOIN across four tables
+--           Books -> Book_Authors -> Authors, Books -> Categories
+--           GROUP_CONCAT aggregates multiple co-authors into one
+--           comma-separated string per book.
 -- -------------------------------------------------------
 SELECT
     b.book_id,
     b.isbn,
     b.title,
-    a.author_name,
+    GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
     c.category_name,
     b.price,
     b.stock_quantity,
     b.publication_year,
     b.publisher
 FROM Books b
-INNER JOIN Authors    a ON b.author_id   = a.author_id
-INNER JOIN Categories c ON b.category_id = c.category_id
-ORDER BY c.category_name, a.author_name, b.title;
+INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+INNER JOIN Authors      a  ON ba.author_id = a.author_id
+INNER JOIN Categories   c  ON b.category_id = c.category_id
+GROUP BY b.book_id, b.isbn, b.title, c.category_name,
+         b.price, b.stock_quantity, b.publication_year, b.publisher
+ORDER BY c.category_name, b.title;
 
 
 -- -------------------------------------------------------
@@ -83,19 +89,21 @@ ORDER BY total_spent DESC;
 -- Query 2b: All books with the number of times they were ordered
 -- Concept : LEFT JOIN chain — books that were never sold
 --           still appear with times_ordered = 0.
+--           Uses Book_Authors for the author join.
 -- -------------------------------------------------------
 SELECT
     b.book_id,
     b.title,
-    a.author_name,
+    GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
     b.price,
     b.stock_quantity,
-    COUNT(oi.order_item_id)       AS times_ordered,
-    COALESCE(SUM(oi.quantity), 0) AS total_units_sold
+    COUNT(DISTINCT oi.order_item_id)  AS times_ordered,
+    COALESCE(SUM(oi.quantity), 0)     AS total_units_sold
 FROM Books b
-INNER JOIN Authors     a  ON b.author_id = a.author_id
-LEFT  JOIN Order_Items oi ON b.book_id   = oi.book_id
-GROUP BY b.book_id, b.title, a.author_name, b.price, b.stock_quantity
+INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+INNER JOIN Authors      a  ON ba.author_id = a.author_id
+LEFT  JOIN Order_Items oi  ON b.book_id    = oi.book_id
+GROUP BY b.book_id, b.title, b.price, b.stock_quantity
 ORDER BY total_units_sold DESC;
 
 
@@ -114,366 +122,293 @@ ORDER BY total_units_sold DESC;
 SELECT
     b.book_id,
     b.title,
-    a.author_name,
+    GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
     c.category_name,
     b.price,
     b.stock_quantity
 FROM Books b
-INNER JOIN Authors    a ON b.author_id   = a.author_id
-INNER JOIN Categories c ON b.category_id = c.category_id
+INNER JOIN Book_Authors ba ON b.book_id     = ba.book_id
+INNER JOIN Authors      a  ON ba.author_id  = a.author_id
+INNER JOIN Categories   c  ON b.category_id = c.category_id
 WHERE b.price > (
     SELECT AVG(price)
     FROM   Books
 )
+GROUP BY b.book_id, b.title, c.category_name, b.price, b.stock_quantity
 ORDER BY b.price DESC;
 
 
 -- -------------------------------------------------------
 -- Query 3b: Customers who spent more than the average customer
 -- Concept : Correlated scalar subquery inside HAVING.
---           The innermost query computes per-customer totals;
---           the middle query averages those totals;
---           the outer query finds customers above that average.
+--           Outer query groups by customer; HAVING filters
+--           groups whose SUM exceeds the per-customer average.
 -- -------------------------------------------------------
 SELECT
-    c.customer_id,
-    c.customer_name,
-    c.email,
+    cu.customer_id,
+    cu.customer_name,
+    cu.email,
+    COUNT(o.order_id)   AS total_orders,
     SUM(o.total_amount) AS total_spent
-FROM Customers c
-INNER JOIN Orders o ON c.customer_id = o.customer_id
+FROM Customers cu
+INNER JOIN Orders o ON cu.customer_id = o.customer_id
 WHERE o.status = 'Completed'
-GROUP BY c.customer_id, c.customer_name, c.email
-HAVING total_spent > (
-    SELECT AVG(customer_total)
+GROUP BY cu.customer_id, cu.customer_name, cu.email
+HAVING SUM(o.total_amount) > (
+    SELECT AVG(sub.customer_total)
     FROM (
-        SELECT  customer_id,
-                SUM(total_amount) AS customer_total
-        FROM    Orders
-        WHERE   status = 'Completed'
+        SELECT SUM(total_amount) AS customer_total
+        FROM Orders
+        WHERE status = 'Completed'
         GROUP BY customer_id
-    ) AS spending_per_customer
+    ) AS sub
 )
 ORDER BY total_spent DESC;
 
 
 -- -------------------------------------------------------
--- Query 3c: Categories with more books than the average category size
--- Concept : Derived-table subquery to compute average category
---           size; outer GROUP BY + HAVING filters above it.
--- -------------------------------------------------------
-SELECT
-    c.category_id,
-    c.category_name,
-    COUNT(b.book_id) AS book_count
-FROM Categories c
-INNER JOIN Books b ON c.category_id = b.category_id
-GROUP BY c.category_id, c.category_name
-HAVING book_count > (
-    SELECT AVG(books_per_category)
-    FROM (
-        SELECT  category_id,
-                COUNT(book_id) AS books_per_category
-        FROM    Books
-        GROUP BY category_id
-    ) AS category_counts
-)
-ORDER BY book_count DESC;
-
-
--- -------------------------------------------------------
--- Query 3d: Books that have never been sold
--- Concept : NOT IN subquery — the subquery returns every
---           book_id that appears in Order_Items;
---           the outer query finds books absent from that set.
+-- Query 3c: Books that have never been ordered (NOT IN subquery)
+-- Concept : NOT IN with a subquery — identifies books with no
+--           sales records at all.
 -- -------------------------------------------------------
 SELECT
     b.book_id,
+    b.isbn,
     b.title,
-    a.author_name,
+    GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
     c.category_name,
     b.price,
     b.stock_quantity
 FROM Books b
-INNER JOIN Authors    a ON b.author_id   = a.author_id
-INNER JOIN Categories c ON b.category_id = c.category_id
-WHERE b.book_id NOT IN (
-    SELECT DISTINCT book_id
-    FROM   Order_Items
-)
+INNER JOIN Book_Authors ba ON b.book_id     = ba.book_id
+INNER JOIN Authors      a  ON ba.author_id  = a.author_id
+INNER JOIN Categories   c  ON b.category_id = c.category_id
+WHERE b.book_id NOT IN (SELECT DISTINCT book_id FROM Order_Items)
+GROUP BY b.book_id, b.isbn, b.title, c.category_name, b.price, b.stock_quantity
 ORDER BY b.title;
 
 
 -- =============================================================
--- SECTION 4: AGGREGATE FUNCTIONS — COUNT, SUM, AVG, MIN, MAX
+-- SECTION 4: AGGREGATE FUNCTIONS
+-- SUM, COUNT, AVG, MIN, MAX applied to grouped data.
 -- =============================================================
 
 -- -------------------------------------------------------
--- Query 4a: Overall bookstore KPI snapshot
--- Concept : Scalar sub-selects to compute independent
---           aggregates in a single result row.
+-- Query 4a: Total revenue, orders, and average order value
+-- Concept : Aggregate functions on the whole Orders table;
+--           COALESCE prevents NULL when no orders exist.
 -- -------------------------------------------------------
 SELECT
-    (SELECT COUNT(*)                    FROM Books)                                     AS total_books,
-    (SELECT COUNT(*)                    FROM Authors)                                   AS total_authors,
-    (SELECT COUNT(*)                    FROM Customers)                                 AS total_customers,
-    (SELECT COUNT(*)                    FROM Orders WHERE status = 'Completed')         AS completed_orders,
-    (SELECT COUNT(*)                    FROM Orders WHERE status = 'Cancelled')         AS cancelled_orders,
-    (SELECT ROUND(MIN(price),  2)       FROM Books)                                     AS cheapest_book,
-    (SELECT ROUND(MAX(price),  2)       FROM Books)                                     AS most_expensive_book,
-    (SELECT ROUND(AVG(price),  2)       FROM Books)                                     AS avg_book_price,
-    (SELECT SUM(stock_quantity)         FROM Books)                                     AS total_stock_units,
-    (SELECT ROUND(SUM(total_amount), 2) FROM Orders WHERE status = 'Completed')        AS gross_revenue;
+    COUNT(order_id)                       AS total_orders,
+    COALESCE(SUM(total_amount),  0)       AS total_revenue,
+    ROUND(COALESCE(AVG(total_amount), 0), 2) AS avg_order_value,
+    MIN(total_amount)                     AS min_order,
+    MAX(total_amount)                     AS max_order
+FROM Orders
+WHERE status = 'Completed';
 
 
 -- -------------------------------------------------------
--- Query 4b: Stock summary by category
--- Concept : COUNT, SUM, AVG, MIN, MAX within GROUP BY.
+-- Query 4b: Price statistics per category
+-- Concept : GROUP BY + aggregate to summarise per category.
 -- -------------------------------------------------------
 SELECT
     c.category_name,
-    COUNT(b.book_id)               AS number_of_books,
-    SUM(b.stock_quantity)          AS total_stock,
-    ROUND(AVG(b.stock_quantity), 1) AS avg_stock_per_book,
-    MIN(b.stock_quantity)          AS min_stock,
-    MAX(b.stock_quantity)          AS max_stock,
-    ROUND(AVG(b.price), 2)         AS avg_price,
-    MIN(b.price)                   AS min_price,
-    MAX(b.price)                   AS max_price
+    COUNT(b.book_id)         AS total_books,
+    ROUND(AVG(b.price), 2)   AS avg_price,
+    MIN(b.price)             AS min_price,
+    MAX(b.price)             AS max_price,
+    SUM(b.stock_quantity)    AS total_stock
+FROM Categories c
+LEFT JOIN Books b ON c.category_id = b.category_id
+GROUP BY c.category_id, c.category_name
+ORDER BY avg_price DESC;
+
+
+-- =============================================================
+-- SECTION 5: GROUP BY and HAVING
+-- GROUP BY aggregates rows into groups; HAVING filters groups
+-- (unlike WHERE, which filters individual rows before grouping).
+-- =============================================================
+
+-- -------------------------------------------------------
+-- Query 5a: Categories with more than 2 books in inventory
+-- Concept : GROUP BY category + HAVING on COUNT.
+-- -------------------------------------------------------
+SELECT
+    c.category_id,
+    c.category_name,
+    COUNT(b.book_id)      AS book_count,
+    SUM(b.stock_quantity) AS total_stock
 FROM Categories c
 INNER JOIN Books b ON c.category_id = b.category_id
 GROUP BY c.category_id, c.category_name
-ORDER BY number_of_books DESC;
+HAVING COUNT(b.book_id) > 2
+ORDER BY book_count DESC;
 
-
--- =============================================================
--- SECTION 5: GROUP BY — CATEGORY SALES TOTALS
--- Aggregates revenues and units per genre after joining all
--- relevant tables through the foreign-key chain.
--- =============================================================
 
 -- -------------------------------------------------------
--- Query 5a: Total sales revenue and units sold per category
--- Concept : GROUP BY category after joining all tables.
+-- Query 5b: Authors with total revenue above ₹100
+-- Concept : HAVING filters the aggregated revenue, not rows.
+--           Uses Book_Authors for the M:N join chain.
 -- -------------------------------------------------------
 SELECT
-    c.category_name,
-    COUNT(DISTINCT o.order_id)   AS number_of_orders,
-    SUM(oi.quantity)             AS total_units_sold,
-    ROUND(SUM(oi.subtotal), 2)   AS total_revenue,
-    ROUND(AVG(oi.unit_price), 2) AS avg_selling_price
-FROM Categories c
-INNER JOIN Books       b  ON c.category_id = b.category_id
-INNER JOIN Order_Items oi ON b.book_id     = oi.book_id
-INNER JOIN Orders      o  ON oi.order_id   = o.order_id
-WHERE o.status = 'Completed'
-GROUP BY c.category_id, c.category_name
-ORDER BY total_revenue DESC;
-
-
--- -------------------------------------------------------
--- Query 5b: Top 5 best-selling books by units sold
--- Concept : GROUP BY book, ORDER BY aggregate, LIMIT.
--- -------------------------------------------------------
-SELECT
-    b.title,
+    a.author_id,
     a.author_name,
-    c.category_name,
-    SUM(oi.quantity)           AS total_units_sold,
-    ROUND(SUM(oi.subtotal), 2) AS total_revenue
-FROM Books b
-INNER JOIN Authors     a  ON b.author_id   = a.author_id
-INNER JOIN Categories  c  ON b.category_id = c.category_id
-INNER JOIN Order_Items oi ON b.book_id     = oi.book_id
-INNER JOIN Orders      o  ON oi.order_id   = o.order_id
-WHERE o.status = 'Completed'
-GROUP BY b.book_id, b.title, a.author_name, c.category_name
-ORDER BY total_units_sold DESC
-LIMIT 5;
-
-
--- =============================================================
--- SECTION 6: GROUP BY — MONTHLY REVENUE
--- =============================================================
-
--- -------------------------------------------------------
--- Query 6a: Monthly revenue trend over all recorded orders
--- Concept : GROUP BY derived month expression using DATE_FORMAT;
---           shows order volume and revenue per calendar month.
--- -------------------------------------------------------
-SELECT
-    DATE_FORMAT(o.order_date, '%Y-%m') AS order_month,
-    COUNT(DISTINCT o.order_id)         AS orders_placed,
-    COUNT(DISTINCT o.customer_id)      AS unique_customers,
-    SUM(oi.quantity)                   AS total_books_sold,
-    ROUND(SUM(o.total_amount), 2)      AS monthly_revenue,
-    ROUND(AVG(o.total_amount), 2)      AS avg_order_value
-FROM Orders o
-INNER JOIN Order_Items oi ON o.order_id = oi.order_id
-WHERE o.status = 'Completed'
-GROUP BY DATE_FORMAT(o.order_date, '%Y-%m')
-ORDER BY order_month ASC;
-
-
--- -------------------------------------------------------
--- Query 6b: Quarterly revenue breakdown
--- Concept : GROUP BY YEAR() and QUARTER() built-in functions.
--- -------------------------------------------------------
-SELECT
-    YEAR(o.order_date)             AS year,
-    QUARTER(o.order_date)          AS quarter,
-    COUNT(DISTINCT o.order_id)     AS total_orders,
-    ROUND(SUM(o.total_amount), 2)  AS quarterly_revenue
-FROM Orders o
-WHERE o.status = 'Completed'
-GROUP BY YEAR(o.order_date), QUARTER(o.order_date)
-ORDER BY year ASC, quarter ASC;
-
-
--- =============================================================
--- SECTION 7: HAVING — FILTER ON AGGREGATED RESULTS
--- WHERE filters individual rows BEFORE grouping.
--- HAVING filters groups AFTER GROUP BY + aggregation.
--- =============================================================
-
--- -------------------------------------------------------
--- Query 7a: Categories whose completed-order revenue exceeds $50
--- Concept : HAVING with SUM aggregate on a fixed threshold.
--- -------------------------------------------------------
-SELECT
-    c.category_name,
-    COUNT(DISTINCT o.order_id)  AS orders_in_category,
-    SUM(oi.quantity)            AS units_sold,
-    ROUND(SUM(oi.subtotal), 2)  AS category_revenue
-FROM Categories c
-INNER JOIN Books       b  ON c.category_id = b.category_id
-INNER JOIN Order_Items oi ON b.book_id     = oi.book_id
-INNER JOIN Orders      o  ON oi.order_id   = o.order_id
-WHERE o.status = 'Completed'
-GROUP BY c.category_id, c.category_name
-HAVING category_revenue > 50
-ORDER BY category_revenue DESC;
-
-
--- -------------------------------------------------------
--- Query 7b: Authors whose books generated more than $30 in sales
--- Concept : HAVING with SUM on joined sales data grouped by author.
--- -------------------------------------------------------
-SELECT
-    a.author_name,
-    COUNT(DISTINCT b.book_id)  AS distinct_titles_sold,
-    SUM(oi.quantity)           AS total_copies_sold,
-    ROUND(SUM(oi.subtotal), 2) AS author_revenue
+    COUNT(DISTINCT b.book_id)      AS books_in_catalog,
+    COALESCE(SUM(oi.quantity), 0)  AS total_copies_sold,
+    ROUND(COALESCE(SUM(oi.subtotal), 0), 2) AS total_revenue
 FROM Authors a
-INNER JOIN Books       b  ON a.author_id = b.author_id
-INNER JOIN Order_Items oi ON b.book_id   = oi.book_id
-INNER JOIN Orders      o  ON oi.order_id = o.order_id
-WHERE o.status = 'Completed'
+INNER JOIN Book_Authors ba ON a.author_id  = ba.author_id
+INNER JOIN Books        b  ON ba.book_id   = b.book_id
+LEFT  JOIN Order_Items  oi ON b.book_id    = oi.book_id
+LEFT  JOIN Orders       o  ON oi.order_id  = o.order_id
+                           AND o.status = 'Completed'
 GROUP BY a.author_id, a.author_name
-HAVING author_revenue > 30
-ORDER BY author_revenue DESC;
-
-
--- -------------------------------------------------------
--- Query 7c: Customers who have placed more than 1 completed order
--- Concept : HAVING COUNT(order_id) > threshold to identify
---           repeat buyers and their lifetime value.
--- -------------------------------------------------------
-SELECT
-    c.customer_id,
-    c.customer_name,
-    c.email,
-    COUNT(o.order_id)             AS number_of_orders,
-    ROUND(SUM(o.total_amount), 2) AS lifetime_value
-FROM Customers c
-INNER JOIN Orders o ON c.customer_id = o.customer_id
-WHERE o.status = 'Completed'
-GROUP BY c.customer_id, c.customer_name, c.email
-HAVING number_of_orders > 1
-ORDER BY number_of_orders DESC, lifetime_value DESC;
-
-
--- -------------------------------------------------------
--- Query 7d: Payment methods used in more than 3 completed orders
--- Concept : HAVING COUNT on a non-primary dimension.
--- -------------------------------------------------------
-SELECT
-    payment_method,
-    COUNT(order_id)             AS times_used,
-    ROUND(SUM(total_amount), 2) AS total_revenue,
-    ROUND(AVG(total_amount), 2) AS avg_order_value
-FROM Orders
-WHERE status = 'Completed'
-GROUP BY payment_method
-HAVING times_used > 3
+HAVING COALESCE(SUM(oi.subtotal), 0) > 100
 ORDER BY total_revenue DESC;
 
 
--- =============================================================
--- SECTION 8: COMPLEX MULTI-TABLE JOINS
--- Five-table joins producing rich, denormalised result sets
--- suitable for invoices, management reports, and dashboards.
--- =============================================================
-
 -- -------------------------------------------------------
--- Query 8a: Full order receipt view — every line item in context
--- Concept : LEFT JOIN for customer (handles guest orders) + four
---           INNER JOINs to bring in item, book, author, category.
+-- Query 5c: Monthly revenue with HAVING to show months > ₹30
+-- Concept : GROUP BY time dimension + HAVING on revenue total.
 -- -------------------------------------------------------
 SELECT
-    o.order_id,
-    DATE(o.order_date)            AS order_date,
-    o.status                      AS order_status,
-    o.payment_method,
-    COALESCE(c.customer_name, 'Walk-in Guest') AS customer_name,
-    c.email                       AS customer_email,
-    c.phone                       AS customer_phone,
-    b.isbn,
-    b.title                       AS book_title,
-    a.author_name,
-    cat.category_name,
-    oi.quantity,
-    oi.unit_price,
-    oi.subtotal,
-    o.total_amount                AS order_total
+    DATE_FORMAT(o.order_date, '%Y-%m')  AS month,
+    DATE_FORMAT(o.order_date, '%b %Y')  AS month_label,
+    COUNT(o.order_id)                   AS order_count,
+    ROUND(SUM(o.total_amount), 2)       AS revenue
 FROM Orders o
-LEFT  JOIN Customers   c   ON o.customer_id  = c.customer_id
-INNER JOIN Order_Items oi  ON o.order_id     = oi.order_id
-INNER JOIN Books       b   ON oi.book_id     = b.book_id
-INNER JOIN Authors     a   ON b.author_id    = a.author_id
-INNER JOIN Categories  cat ON b.category_id  = cat.category_id
-ORDER BY o.order_date DESC, o.order_id, oi.order_item_id;
+WHERE o.status = 'Completed'
+GROUP BY DATE_FORMAT(o.order_date, '%Y-%m'), DATE_FORMAT(o.order_date, '%b %Y')
+HAVING SUM(o.total_amount) > 30
+ORDER BY month ASC;
 
+
+-- =============================================================
+-- SECTION 6: M:N MANY-TO-MANY QUERIES (Book_Authors junction)
+-- Demonstrates the M:N co-authorship design for the viva.
+-- =============================================================
 
 -- -------------------------------------------------------
--- Query 8b: Individual customer purchase history
--- Concept : Multi-table JOIN filtered to a single customer
---           (change the customer_id value as needed).
+-- Query 6a: All books with their complete author list
+-- Concept : GROUP_CONCAT aggregates multiple author rows
+--           for the same book into a single comma-separated
+--           string — the standard pattern for M:N display.
 -- -------------------------------------------------------
 SELECT
-    c.customer_name,
+    b.book_id,
+    b.title,
+    GROUP_CONCAT(
+        a.author_name
+        ORDER BY ba.author_role ASC, a.author_name ASC
+        SEPARATOR ', '
+    ) AS authors,
+    GROUP_CONCAT(ba.author_role ORDER BY ba.author_role SEPARATOR ', ') AS roles
+FROM Books b
+JOIN Book_Authors ba ON b.book_id    = ba.book_id
+JOIN Authors      a  ON ba.author_id = a.author_id
+GROUP BY b.book_id, b.title
+ORDER BY b.title;
+
+
+-- -------------------------------------------------------
+-- Query 6b: Show only books with multiple authors (co-authored)
+-- Concept : HAVING COUNT > 1 filters books that appear more
+--           than once in Book_Authors (i.e., have co-authors).
+-- -------------------------------------------------------
+SELECT
+    b.book_id,
+    b.title,
+    COUNT(ba.author_id)  AS author_count,
+    GROUP_CONCAT(a.author_name ORDER BY ba.author_role SEPARATOR ', ') AS authors
+FROM Books b
+JOIN Book_Authors ba ON b.book_id    = ba.book_id
+JOIN Authors      a  ON ba.author_id = a.author_id
+GROUP BY b.book_id, b.title
+HAVING COUNT(ba.author_id) > 1;
+
+
+-- -------------------------------------------------------
+-- Query 6c: Find all books written by a specific author
+--           (by name — demonstrates the M:N lookup direction)
+-- -------------------------------------------------------
+SELECT
+    b.book_id, b.title, b.isbn, c.category_name, b.price, b.stock_quantity
+FROM Books b
+JOIN Book_Authors ba ON b.book_id     = ba.book_id
+JOIN Authors      a  ON ba.author_id  = a.author_id
+JOIN Categories   c  ON b.category_id = c.category_id
+WHERE a.author_name = 'George Orwell'   -- Change author name as needed
+ORDER BY b.title;
+
+
+-- =============================================================
+-- SECTION 7: MULTI-TABLE JOINS (complex reporting queries)
+-- Combining 5+ tables to produce business intelligence reports.
+-- =============================================================
+
+-- -------------------------------------------------------
+-- Query 7a: Full order line-item details
+-- Concept : 6-table JOIN — customer + order + items + book +
+--           Book_Authors + category — the most complex join
+--           in the system.
+-- -------------------------------------------------------
+SELECT
     o.order_id,
-    DATE(o.order_date)            AS purchase_date,
+    COALESCE(cu.customer_name, 'Walk-in')  AS customer,
+    DATE(o.order_date)                      AS order_date,
     o.payment_method,
-    b.title                       AS book_title,
-    a.author_name,
+    o.status,
+    b.title                                 AS book_title,
+    GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
     cat.category_name,
     oi.quantity,
     oi.unit_price,
     oi.subtotal
-FROM Customers c
-INNER JOIN Orders      o   ON c.customer_id  = o.customer_id
-INNER JOIN Order_Items oi  ON o.order_id     = oi.order_id
-INNER JOIN Books       b   ON oi.book_id     = b.book_id
-INNER JOIN Authors     a   ON b.author_id    = a.author_id
-INNER JOIN Categories  cat ON b.category_id  = cat.category_id
+FROM Orders o
+LEFT  JOIN Customers    cu  ON o.customer_id  = cu.customer_id
+INNER JOIN Order_Items  oi  ON o.order_id     = oi.order_id
+INNER JOIN Books        b   ON oi.book_id     = b.book_id
+INNER JOIN Book_Authors ba  ON b.book_id      = ba.book_id
+INNER JOIN Authors      a   ON ba.author_id   = a.author_id
+INNER JOIN Categories   cat ON b.category_id  = cat.category_id
+GROUP BY o.order_id, cu.customer_name, o.order_date, o.payment_method,
+         o.status, b.title, cat.category_name, oi.quantity, oi.unit_price, oi.subtotal
+ORDER BY o.order_date DESC, o.order_id, oi.order_item_id;
+
+
+-- -------------------------------------------------------
+-- Query 7b: Individual customer purchase history
+-- Concept : Multi-table JOIN filtered to a single customer.
+-- -------------------------------------------------------
+SELECT
+    c.customer_name,
+    o.order_id,
+    DATE(o.order_date)   AS purchase_date,
+    o.payment_method,
+    b.title              AS book_title,
+    GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+    cat.category_name,
+    oi.quantity,
+    oi.unit_price,
+    oi.subtotal
+FROM Customers     c
+INNER JOIN Orders       o   ON c.customer_id  = o.customer_id
+INNER JOIN Order_Items  oi  ON o.order_id     = oi.order_id
+INNER JOIN Books        b   ON oi.book_id     = b.book_id
+INNER JOIN Book_Authors ba  ON b.book_id      = ba.book_id
+INNER JOIN Authors      a   ON ba.author_id   = a.author_id
+INNER JOIN Categories   cat ON b.category_id  = cat.category_id
 WHERE o.status      = 'Completed'
   AND c.customer_id = 1   -- Change to desired customer_id
+GROUP BY c.customer_name, o.order_id, o.order_date, o.payment_method,
+         b.title, cat.category_name, oi.quantity, oi.unit_price, oi.subtotal
 ORDER BY o.order_date DESC;
 
 
 -- -------------------------------------------------------
--- Query 8c: Best-selling books report with current stock
+-- Query 7c: Best-selling books report with current stock
 -- Concept : JOIN + GROUP BY + ORDER BY aggregate + LEFT JOIN
 --           so unsold books still appear with zero values.
 -- -------------------------------------------------------
@@ -481,50 +416,50 @@ SELECT
     b.book_id,
     b.isbn,
     b.title,
-    a.author_name,
+    GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
     cat.category_name,
-    b.price                       AS current_price,
-    b.stock_quantity              AS current_stock,
-    COUNT(DISTINCT oi.order_id)   AS orders_containing_book,
-    COALESCE(SUM(oi.quantity), 0) AS total_units_sold,
+    b.price                        AS current_price,
+    b.stock_quantity               AS current_stock,
+    COUNT(DISTINCT oi.order_id)    AS orders_containing_book,
+    COALESCE(SUM(oi.quantity), 0)  AS total_units_sold,
     ROUND(COALESCE(SUM(oi.subtotal), 0), 2) AS total_revenue_generated,
-    ROUND(AVG(oi.unit_price), 2)  AS avg_selling_price
+    ROUND(AVG(oi.unit_price), 2)   AS avg_selling_price
 FROM Books b
-INNER JOIN Authors     a   ON b.author_id    = a.author_id
-INNER JOIN Categories  cat ON b.category_id  = cat.category_id
-LEFT  JOIN Order_Items oi  ON b.book_id      = oi.book_id
-LEFT  JOIN Orders      o   ON oi.order_id    = o.order_id
-                           AND o.status      = 'Completed'
-GROUP BY b.book_id, b.isbn, b.title, a.author_name, cat.category_name, b.price, b.stock_quantity
+INNER JOIN Book_Authors ba  ON b.book_id      = ba.book_id
+INNER JOIN Authors      a   ON ba.author_id   = a.author_id
+INNER JOIN Categories   cat ON b.category_id  = cat.category_id
+LEFT  JOIN Order_Items  oi  ON b.book_id      = oi.book_id
+LEFT  JOIN Orders       o   ON oi.order_id    = o.order_id
+                            AND o.status      = 'Completed'
+GROUP BY b.book_id, b.isbn, b.title, cat.category_name, b.price, b.stock_quantity
 ORDER BY total_units_sold DESC, total_revenue_generated DESC;
 
 
 -- -------------------------------------------------------
--- Query 8d: Low-stock alert — books with < 5 units that have sold
--- Concept : JOIN with WHERE on stock threshold to surface
---           inventory risk for titles with proven demand.
+-- Query 7d: Low-stock alert — books with < 5 units that have sold
+-- Concept : JOIN with WHERE on stock threshold.
 -- -------------------------------------------------------
 SELECT
     b.book_id,
     b.title,
-    a.author_name,
+    GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
     b.stock_quantity              AS remaining_stock,
     SUM(oi.quantity)              AS total_sold,
     ROUND(SUM(oi.subtotal), 2)    AS revenue_earned
 FROM Books b
-INNER JOIN Authors     a  ON b.author_id = a.author_id
-INNER JOIN Order_Items oi ON b.book_id   = oi.book_id
-INNER JOIN Orders      o  ON oi.order_id = o.order_id
+INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+INNER JOIN Authors      a  ON ba.author_id = a.author_id
+INNER JOIN Order_Items  oi ON b.book_id    = oi.book_id
+INNER JOIN Orders       o  ON oi.order_id  = o.order_id
 WHERE b.stock_quantity < 5
   AND o.status = 'Completed'
-GROUP BY b.book_id, b.title, a.author_name, b.stock_quantity
+GROUP BY b.book_id, b.title, b.stock_quantity
 ORDER BY b.stock_quantity ASC, total_sold DESC;
 
 
 -- -------------------------------------------------------
--- Query 8e: Revenue contribution by payment method per month
--- Concept : GROUP BY two dimensions (month + payment method)
---           to reveal channel trends over time.
+-- Query 7e: Revenue contribution by payment method per month
+-- Concept : GROUP BY two dimensions (month + payment method).
 -- -------------------------------------------------------
 SELECT
     DATE_FORMAT(o.order_date, '%Y-%m') AS month,
@@ -538,24 +473,24 @@ ORDER BY month ASC, revenue DESC;
 
 
 -- -------------------------------------------------------
--- Query 8f: Author performance dashboard
--- Concept : Full five-table JOIN aggregated by author —
---           books, copies sold, revenue, avg price.
+-- Query 7f: Author performance dashboard
+-- Concept : Full join chain via Book_Authors + aggregation.
 -- -------------------------------------------------------
 SELECT
     a.author_id,
     a.author_name,
-    COUNT(DISTINCT b.book_id)      AS books_in_catalog,
-    COUNT(DISTINCT oi.order_id)    AS orders_with_their_books,
-    COALESCE(SUM(oi.quantity), 0)  AS total_copies_sold,
+    COUNT(DISTINCT b.book_id)       AS books_in_catalog,
+    COUNT(DISTINCT oi.order_id)     AS orders_with_their_books,
+    COALESCE(SUM(oi.quantity), 0)   AS total_copies_sold,
     ROUND(COALESCE(SUM(oi.subtotal), 0), 2) AS total_revenue,
-    ROUND(AVG(b.price), 2)         AS avg_list_price,
-    MIN(b.price)                   AS cheapest_title,
-    MAX(b.price)                   AS priciest_title
+    ROUND(AVG(b.price), 2)          AS avg_list_price,
+    MIN(b.price)                    AS cheapest_title,
+    MAX(b.price)                    AS priciest_title
 FROM Authors a
-INNER JOIN Books       b  ON a.author_id = b.author_id
-LEFT  JOIN Order_Items oi ON b.book_id   = oi.book_id
-LEFT  JOIN Orders      o  ON oi.order_id = o.order_id
-                          AND o.status   = 'Completed'
+INNER JOIN Book_Authors ba ON a.author_id  = ba.author_id
+INNER JOIN Books        b  ON ba.book_id   = b.book_id
+LEFT  JOIN Order_Items  oi ON b.book_id    = oi.book_id
+LEFT  JOIN Orders       o  ON oi.order_id  = o.order_id
+                           AND o.status   = 'Completed'
 GROUP BY a.author_id, a.author_name
 ORDER BY total_revenue DESC;

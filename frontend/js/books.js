@@ -127,7 +127,7 @@ function renderBooksTable(container, data, authors, categories) {
               <td><span class="fw-600">${escHtml(b.title)}</span>
                 ${b.publisher ? `<div class="td-muted fs-12">${escHtml(b.publisher)}</div>` : ''}
               </td>
-              <td>${escHtml(b.author_name)}</td>
+              <td>${escHtml(b.authors)}</td>
               <td><span class="badge badge-sage">${escHtml(b.category_name)}</span></td>
               <td class="fw-600">${fmtCurrency(b.price)}</td>
               <td>${stockBadge(b.stock_quantity)}</td>
@@ -184,7 +184,7 @@ async function viewBook(id) {
     openModal(`${escHtml(b.title)}`, `
       <div class="detail-grid">
         <div class="detail-item"><div class="detail-label">ISBN</div><div class="detail-value td-mono">${escHtml(b.isbn)}</div></div>
-        <div class="detail-item"><div class="detail-label">Author</div><div class="detail-value">${escHtml(b.author_name)}</div></div>
+        <div class="detail-item"><div class="detail-label">Author(s)</div><div class="detail-value">${escHtml(b.authors)}</div></div>
         <div class="detail-item"><div class="detail-label">Category</div><div class="detail-value"><span class="badge badge-sage">${escHtml(b.category_name)}</span></div></div>
         <div class="detail-item"><div class="detail-label">Price</div><div class="detail-value fw-600">${fmtCurrency(b.price)}</div></div>
         <div class="detail-item"><div class="detail-label">Stock</div><div class="detail-value">${stockBadge(b.stock_quantity)}</div></div>

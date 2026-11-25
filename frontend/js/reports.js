@@ -148,7 +148,7 @@ async function loadTopBooksReport(container) {
             ${data.map((b,i) => `<tr>
               <td class="td-muted">${i+1}</td>
               <td class="fw-600">${escHtml(b.title)}</td>
-              <td>${escHtml(b.author_name)}</td>
+              <td>${escHtml(b.authors)}</td>
               <td><span class="badge badge-sage">${escHtml(b.category_name)}</span></td>
               <td class="fw-600">${b.total_sold}</td>
               <td class="fw-600">${fmtCurrency(b.total_revenue)}</td>
@@ -156,7 +156,7 @@ async function loadTopBooksReport(container) {
           </tbody>
         </table></div>
         ${csvBtn(data, 'top-books', [
-          {key:'title',label:'Title'},{key:'author_name',label:'Author'},
+          {key:'title',label:'Title'},{key:'authors',label:'Author'},
           {key:'category_name',label:'Category'},{key:'total_sold',label:'Units Sold'},{key:'total_revenue',label:'Revenue'}
         ])}`;
     } catch (err) { rBody.innerHTML = emptyStateHTML('alert-circle','Error',err.message); }
@@ -260,7 +260,7 @@ async function loadInventoryReport(container) {
           <tbody>
             ${data.map(b => `<tr>
               <td class="fw-600">${escHtml(b.title)}</td>
-              <td>${escHtml(b.author_name)}</td>
+              <td>${escHtml(b.authors)}</td>
               <td><span class="badge badge-sage">${escHtml(b.category_name)}</span></td>
               <td>${fmtCurrency(b.price)}</td>
               <td>${stockBadge(b.stock_quantity)}</td>
@@ -269,7 +269,7 @@ async function loadInventoryReport(container) {
             </tr>`).join('')}
           </tbody>
         </table></div>
-        ${csvBtn(data,'inventory',[{key:'title',label:'Title'},{key:'author_name',label:'Author'},{key:'category_name',label:'Category'},{key:'price',label:'Price'},{key:'stock_quantity',label:'Stock'},{key:'stock_value',label:'Stock Value'}])}`;
+        ${csvBtn(data,'inventory',[{key:'title',label:'Title'},{key:'authors',label:'Author'},{key:'category_name',label:'Category'},{key:'price',label:'Price'},{key:'stock_quantity',label:'Stock'},{key:'stock_value',label:'Stock Value'}])}`;
     } catch (err) { rBody.innerHTML = emptyStateHTML('alert-circle','Error',err.message); }
   });
 }
@@ -298,7 +298,7 @@ async function loadLowStockReport(container) {
           <tbody>
             ${data.map(b => `<tr>
               <td class="fw-600">${escHtml(b.title)}</td>
-              <td>${escHtml(b.author_name)}</td>
+              <td>${escHtml(b.authors)}</td>
               <td>${escHtml(b.category_name)}</td>
               <td>${stockBadge(b.stock_quantity)}</td>
               <td>${fmtCurrency(b.price)}</td>
@@ -306,7 +306,7 @@ async function loadLowStockReport(container) {
             </tr>`).join('')}
           </tbody>
         </table></div>
-        ${csvBtn(data,'low-stock',[{key:'title',label:'Title'},{key:'author_name',label:'Author'},{key:'stock_quantity',label:'Stock'},{key:'price',label:'Price'}])}`;
+        ${csvBtn(data,'low-stock',[{key:'title',label:'Title'},{key:'authors',label:'Author'},{key:'stock_quantity',label:'Stock'},{key:'price',label:'Price'}])}`;
     } catch (err) { rBody.innerHTML = emptyStateHTML('alert-circle','Error',err.message); }
   }
 
@@ -361,7 +361,7 @@ async function loadAboveAvgReport(container) {
         <tbody>
           ${data.map(b => `<tr>
             <td class="fw-600">${escHtml(b.title)}</td>
-            <td>${escHtml(b.author_name)}</td>
+            <td>${escHtml(b.authors)}</td>
             <td><span class="badge badge-sage">${escHtml(b.category_name)}</span></td>
             <td class="fw-600">${fmtCurrency(b.price)}</td>
             <td style="color:var(--terracotta)">+${fmtCurrency(b.price - avg)} above avg</td>
@@ -395,7 +395,7 @@ async function loadUnsoldReport(container) {
           ${data.map(b => `<tr>
             <td class="td-mono">${escHtml(b.isbn)}</td>
             <td class="fw-600">${escHtml(b.title)}</td>
-            <td>${escHtml(b.author_name)}</td>
+            <td>${escHtml(b.authors)}</td>
             <td><span class="badge badge-sage">${escHtml(b.category_name)}</span></td>
             <td>${fmtCurrency(b.price)}</td>
             <td>${stockBadge(b.stock_quantity)}</td>

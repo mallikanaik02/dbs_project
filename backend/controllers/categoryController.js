@@ -1,4 +1,5 @@
 // backend/controllers/categoryController.js
+// M:N schema: author join in getCategory now goes via Book_Authors
 const db = require('../config/db');
 const { validateCategory } = require('../utils/validation');
 
@@ -33,11 +34,16 @@ const getCategory = async (req, res, next) => {
       GROUP BY c.category_id`, [req.params.id]);
     if (!cat) return res.status(404).json({ error: 'Category not found.' });
 
+    // Books in category — author names via Book_Authors
     const [books] = await db.execute(`
-      SELECT b.book_id, b.isbn, b.title, a.author_name, b.price, b.stock_quantity
+      SELECT b.book_id, b.isbn, b.title,
+             GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+             b.price, b.stock_quantity
       FROM Books b
-      INNER JOIN Authors a ON b.author_id = a.author_id
+      INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+      INNER JOIN Authors      a  ON ba.author_id = a.author_id
       WHERE b.category_id = ?
+      GROUP BY b.book_id, b.isbn, b.title, b.price, b.stock_quantity
       ORDER BY b.title`, [req.params.id]);
 
     res.json({ ...cat, books });
@@ -88,4 +94,3 @@ const deleteCategory = async (req, res, next) => {
 };
 
 module.exports = { getAllCategories, getCategory, createCategory, updateCategory, deleteCategory };
-

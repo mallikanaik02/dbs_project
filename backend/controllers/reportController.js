@@ -1,4 +1,5 @@
 // backend/controllers/reportController.js
+// M:N schema: all author joins now go through Book_Authors junction table.
 const db = require('../config/db');
 
 // GET /api/reports/summary
@@ -63,16 +64,19 @@ const getTopBooks = async (req, res, next) => {
 
     const [rows] = await db.execute(`
       SELECT
-        b.book_id, b.title, a.author_name, c.category_name,
+        b.book_id, b.title,
+        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+        c.category_name,
         SUM(oi.quantity)  AS total_sold,
         SUM(oi.subtotal)  AS total_revenue
       FROM Books b
-      INNER JOIN Authors a     ON b.author_id   = a.author_id
-      INNER JOIN Categories c  ON b.category_id = c.category_id
-      INNER JOIN Order_Items oi ON b.book_id    = oi.book_id
-      INNER JOIN Orders o      ON oi.order_id   = o.order_id
+      INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+      INNER JOIN Authors      a  ON ba.author_id = a.author_id
+      INNER JOIN Categories   c  ON b.category_id = c.category_id
+      INNER JOIN Order_Items  oi ON b.book_id    = oi.book_id
+      INNER JOIN Orders       o  ON oi.order_id  = o.order_id
       ${where}
-      GROUP BY b.book_id, b.title, a.author_name, c.category_name
+      GROUP BY b.book_id, b.title, c.category_name
       ${having}
       ORDER BY total_sold DESC
       LIMIT ${parseInt(limit)}`, params);
@@ -150,14 +154,19 @@ const getInventory = async (req, res, next) => {
 
     const [rows] = await db.execute(`
       SELECT
-        b.book_id, b.isbn, b.title, a.author_name, c.category_name,
+        b.book_id, b.isbn, b.title,
+        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+        c.category_name,
         b.price, b.stock_quantity,
         ROUND(b.price * b.stock_quantity, 2) AS stock_value,
         b.publication_year
       FROM Books b
-      INNER JOIN Authors a    ON b.author_id   = a.author_id
-      INNER JOIN Categories c ON b.category_id = c.category_id
+      INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+      INNER JOIN Authors      a  ON ba.author_id = a.author_id
+      INNER JOIN Categories   c  ON b.category_id = c.category_id
       ${where}
+      GROUP BY b.book_id, b.isbn, b.title, c.category_name,
+               b.price, b.stock_quantity, b.publication_year
       ORDER BY b.title ASC`, params);
     res.json(rows);
   } catch (err) { next(err); }
@@ -169,13 +178,18 @@ const getLowStock = async (req, res, next) => {
     const threshold = parseInt(req.query.threshold) || 5;
     const [rows] = await db.execute(`
       SELECT
-        b.book_id, b.isbn, b.title, a.author_name, c.category_name,
+        b.book_id, b.isbn, b.title,
+        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+        c.category_name,
         b.stock_quantity, b.price,
         ROUND(b.price * b.stock_quantity, 2) AS stock_value
       FROM Books b
-      INNER JOIN Authors a    ON b.author_id   = a.author_id
-      INNER JOIN Categories c ON b.category_id = c.category_id
+      INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+      INNER JOIN Authors      a  ON ba.author_id = a.author_id
+      INNER JOIN Categories   c  ON b.category_id = c.category_id
       WHERE b.stock_quantity <= ?
+      GROUP BY b.book_id, b.isbn, b.title, c.category_name,
+               b.stock_quantity, b.price
       ORDER BY b.stock_quantity ASC, b.title ASC`, [threshold]);
     res.json(rows);
   } catch (err) { next(err); }
@@ -187,13 +201,14 @@ const getAuthorReport = async (req, res, next) => {
     const [rows] = await db.execute(`
       SELECT
         a.author_id, a.author_name,
-        COUNT(DISTINCT b.book_id)     AS book_count,
+        COUNT(DISTINCT ba.book_id)    AS book_count,
         COALESCE(SUM(oi.quantity), 0) AS total_sold,
         COALESCE(SUM(oi.subtotal), 0) AS total_revenue
       FROM Authors a
-      LEFT JOIN Books b        ON a.author_id = b.author_id
-      LEFT JOIN Order_Items oi ON b.book_id   = oi.book_id
-      LEFT JOIN Orders o       ON oi.order_id = o.order_id AND o.status = 'Completed'
+      LEFT JOIN Book_Authors ba ON a.author_id  = ba.author_id
+      LEFT JOIN Books        b  ON ba.book_id   = b.book_id
+      LEFT JOIN Order_Items  oi ON b.book_id    = oi.book_id
+      LEFT JOIN Orders       o  ON oi.order_id  = o.order_id AND o.status = 'Completed'
       GROUP BY a.author_id, a.author_name
       ORDER BY total_revenue DESC`);
     res.json(rows);
@@ -205,13 +220,17 @@ const getAboveAveragePrice = async (req, res, next) => {
   try {
     const [rows] = await db.execute(`
       SELECT
-        b.book_id, b.title, a.author_name, c.category_name,
+        b.book_id, b.title,
+        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+        c.category_name,
         b.price, b.stock_quantity,
         ROUND((SELECT AVG(price) FROM Books), 2) AS avg_price
       FROM Books b
-      INNER JOIN Authors a    ON b.author_id   = a.author_id
-      INNER JOIN Categories c ON b.category_id = c.category_id
+      INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+      INNER JOIN Authors      a  ON ba.author_id = a.author_id
+      INNER JOIN Categories   c  ON b.category_id = c.category_id
       WHERE b.price > (SELECT AVG(price) FROM Books)
+      GROUP BY b.book_id, b.title, c.category_name, b.price, b.stock_quantity
       ORDER BY b.price DESC`);
     res.json(rows);
   } catch (err) { next(err); }
@@ -222,12 +241,16 @@ const getUnsoldBooks = async (req, res, next) => {
   try {
     const [rows] = await db.execute(`
       SELECT
-        b.book_id, b.isbn, b.title, a.author_name, c.category_name,
+        b.book_id, b.isbn, b.title,
+        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+        c.category_name,
         b.price, b.stock_quantity
       FROM Books b
-      INNER JOIN Authors a    ON b.author_id   = a.author_id
-      INNER JOIN Categories c ON b.category_id = c.category_id
+      INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+      INNER JOIN Authors      a  ON ba.author_id = a.author_id
+      INNER JOIN Categories   c  ON b.category_id = c.category_id
       WHERE b.book_id NOT IN (SELECT DISTINCT book_id FROM Order_Items)
+      GROUP BY b.book_id, b.isbn, b.title, c.category_name, b.price, b.stock_quantity
       ORDER BY b.title`);
     res.json(rows);
   } catch (err) { next(err); }
@@ -238,4 +261,3 @@ module.exports = {
   getCustomerSpending, getInventory, getLowStock, getAuthorReport,
   getAboveAveragePrice, getUnsoldBooks
 };
-

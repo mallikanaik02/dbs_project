@@ -1,4 +1,5 @@
 // backend/controllers/dashboardController.js
+// M:N schema: all author joins now go through Book_Authors junction table.
 const db = require('../config/db');
 
 // GET /api/dashboard/stats
@@ -80,14 +81,16 @@ const getTopBooks = async (req, res, next) => {
   try {
     const [rows] = await db.execute(`
       SELECT
-        b.title, a.author_name,
+        b.title,
+        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
         SUM(oi.quantity)  AS total_sold,
         SUM(oi.subtotal)  AS revenue
       FROM Books b
-      INNER JOIN Authors a      ON b.author_id  = a.author_id
-      INNER JOIN Order_Items oi ON b.book_id    = oi.book_id
-      INNER JOIN Orders o       ON oi.order_id  = o.order_id AND o.status = 'Completed'
-      GROUP BY b.book_id, b.title, a.author_name
+      INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+      INNER JOIN Authors      a  ON ba.author_id = a.author_id
+      INNER JOIN Order_Items  oi ON b.book_id    = oi.book_id
+      INNER JOIN Orders       o  ON oi.order_id  = o.order_id AND o.status = 'Completed'
+      GROUP BY b.book_id, b.title
       ORDER BY total_sold DESC
       LIMIT 5`);
     res.json(rows);
@@ -114,10 +117,15 @@ const getRecentOrders = async (req, res, next) => {
 const getLowStock = async (req, res, next) => {
   try {
     const [rows] = await db.execute(`
-      SELECT b.book_id, b.title, a.author_name, b.stock_quantity, b.price
+      SELECT
+        b.book_id, b.title,
+        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+        b.stock_quantity, b.price
       FROM Books b
-      INNER JOIN Authors a ON b.author_id = a.author_id
+      INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
+      INNER JOIN Authors      a  ON ba.author_id = a.author_id
       WHERE b.stock_quantity <= 5
+      GROUP BY b.book_id, b.title, b.stock_quantity, b.price
       ORDER BY b.stock_quantity ASC, b.title ASC
       LIMIT 10`);
     res.json(rows);
@@ -125,4 +133,3 @@ const getLowStock = async (req, res, next) => {
 };
 
 module.exports = { getStats, getMonthlyRevenue, getCategorySales, getTopBooks, getRecentOrders, getLowStock };
-
