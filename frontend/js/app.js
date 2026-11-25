@@ -356,7 +356,7 @@ async function renderOverview(container) {
                 ${lowStock.map(b => `
                   <tr>
                     <td>${escHtml(b.title)}</td>
-                    <td class="td-muted">${escHtml(b.author_name)}</td>
+                    <td class="td-muted">${escHtml(b.authors)}</td>
                     <td>${stockBadge(b.stock_quantity)}</td>
                   </tr>`).join('')}
               </tbody>

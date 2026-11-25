@@ -3,6 +3,7 @@
 -- File: seed.sql
 -- Description: Realistic seed data for shelf_and_co database.
 --              INSERT IGNORE prevents duplicate-key errors on re-run.
+--              Book_Authors (M:N junction) includes co-authorship examples.
 -- =============================================================
 
 USE shelf_and_co;
@@ -47,57 +48,116 @@ INSERT IGNORE INTO Categories (category_id, category_name, description) VALUES
 
 -- -------------------------------------------------------------
 -- 3. BOOKS  (25 books spread across categories)
+--    NOTE: author_id column REMOVED — authors linked via Book_Authors
 --    ISBNs: 978-XXXXXXXXXX format
 --    Prices: $8–$35; stock includes low stock (1–3) and out-of-stock (0)
 -- -------------------------------------------------------------
-INSERT IGNORE INTO Books (book_id, isbn, title, author_id, category_id, price, stock_quantity, publication_year, publisher) VALUES
--- George Orwell (author 1) — Fiction & Non-fiction
-(1,  '978-0451524935', 'Nineteen Eighty-Four',          1, 1, 12.99, 45, 1949, 'Signet Classic'),
-(2,  '978-0452284241', 'Animal Farm',                   1, 1,  9.99, 60, 1945, 'Plume'),
-(3,  '978-0547249643', 'Homage to Catalonia',            1, 6, 14.99,  3, 1938, 'Mariner Books'),
+INSERT IGNORE INTO Books (book_id, isbn, title, category_id, price, stock_quantity, publication_year, publisher) VALUES
+-- George Orwell — Fiction & Non-fiction
+(1,  '978-0451524935', 'Nineteen Eighty-Four',                    1, 12.99, 45, 1949, 'Signet Classic'),
+(2,  '978-0452284241', 'Animal Farm',                             1,  9.99, 60, 1945, 'Plume'),
+(3,  '978-0547249643', 'Homage to Catalonia',                     6, 14.99,  3, 1938, 'Mariner Books'),
 
--- Toni Morrison (author 2) — Fiction
-(4,  '978-1400033416', 'Beloved',                        2, 1, 15.99, 28, 1987, 'Vintage'),
-(5,  '978-0307740922', 'Song of Solomon',                2, 1, 14.99, 20, 1977, 'Vintage'),
-(6,  '978-0307388384', 'The Bluest Eye',                 2, 1, 11.99,  2, 1970, 'Vintage'),
+-- Toni Morrison — Fiction
+(4,  '978-1400033416', 'Beloved',                                 1, 15.99, 28, 1987, 'Vintage'),
+(5,  '978-0307740922', 'Song of Solomon',                         1, 14.99, 20, 1977, 'Vintage'),
+(6,  '978-0307388384', 'The Bluest Eye',                          1, 11.99,  2, 1970, 'Vintage'),
 
--- Gabriel Garcia Marquez (author 3) — Fiction
-(7,  '978-0060883287', 'One Hundred Years of Solitude',  3, 1, 16.99, 35, 1967, 'Harper Perennial'),
-(8,  '978-0140157239', 'Love in the Time of Cholera',    3, 1, 15.99, 18, 1985, 'Penguin Books'),
+-- Gabriel Garcia Marquez — Fiction
+(7,  '978-0060883287', 'One Hundred Years of Solitude',           1, 16.99, 35, 1967, 'Harper Perennial'),
+(8,  '978-0140157239', 'Love in the Time of Cholera',             1, 15.99, 18, 1985, 'Penguin Books'),
 
--- Haruki Murakami (author 4) — Fiction
-(9,  '978-0375704024', 'Norwegian Wood',                 4, 1, 13.99, 40, 1987, 'Vintage'),
-(10, '978-0307593313', 'Kafka on the Shore',             4, 1, 17.99, 22, 2002, 'Vintage'),
-(11, '978-0679745402', 'The Wind-Up Bird Chronicle',     4, 1, 18.99,  1, 1994, 'Vintage'),
+-- Haruki Murakami — Fiction
+(9,  '978-0375704024', 'Norwegian Wood',                          1, 13.99, 40, 1987, 'Vintage'),
+(10, '978-0307593313', 'Kafka on the Shore',                      1, 17.99, 22, 2002, 'Vintage'),
+(11, '978-0679745402', 'The Wind-Up Bird Chronicle',              1, 18.99,  1, 1994, 'Vintage'),
 
--- Agatha Christie (author 5) — Mystery
-(12, '978-0062073501', 'Murder on the Orient Express',   5, 2, 10.99, 55, 1934, 'William Morrow'),
-(13, '978-0062073556', 'And Then There Were None',       5, 2,  9.99, 70, 1939, 'William Morrow'),
-(14, '978-0062073594', 'The ABC Murders',                5, 2, 11.99, 15, 1936, 'William Morrow'),
+-- Agatha Christie — Mystery
+(12, '978-0062073501', 'Murder on the Orient Express',            2, 10.99, 55, 1934, 'William Morrow'),
+(13, '978-0062073556', 'And Then There Were None',                2,  9.99, 70, 1939, 'William Morrow'),
+(14, '978-0062073594', 'The ABC Murders',                         2, 11.99, 15, 1936, 'William Morrow'),
 
--- J.K. Rowling (author 6) — Fantasy
-(15, '978-0590353427', 'Harry Potter and the Philosophers Stone', 6, 3, 10.99, 80, 1997, 'Scholastic'),
-(16, '978-0439064873', 'Harry Potter and the Chamber of Secrets',  6, 3, 11.99, 65, 1998, 'Scholastic'),
-(17, '978-0439136365', 'Harry Potter and the Prisoner of Azkaban', 6, 3, 12.99, 50, 1999, 'Scholastic'),
+-- J.K. Rowling — Fantasy
+(15, '978-0590353427', 'Harry Potter and the Philosophers Stone', 3, 10.99, 80, 1997, 'Scholastic'),
+(16, '978-0439064873', 'Harry Potter and the Chamber of Secrets', 3, 11.99, 65, 1998, 'Scholastic'),
+(17, '978-0439136365', 'Harry Potter and the Prisoner of Azkaban',3, 12.99, 50, 1999, 'Scholastic'),
 
--- Stephen King (author 7) — Fantasy / Horror
-(18, '978-0307743657', 'The Shining',                   7, 3, 14.99, 38, 1977, 'Anchor'),
-(19, '978-1501156700', 'It',                             7, 3, 19.99,  0, 1986, 'Scribner'),
-(20, '978-0385333481', 'Pet Sematary',                   7, 3, 13.99,  5, 1983, 'Anchor'),
+-- Stephen King — Fantasy / Horror
+(18, '978-0307743657', 'The Shining',                             3, 14.99, 38, 1977, 'Anchor'),
+(19, '978-1501156700', 'It',                                      3, 19.99,  0, 1986, 'Scribner'),
+(20, '978-0385333481', 'Pet Sematary',                            3, 13.99,  5, 1983, 'Anchor'),
 
--- Paulo Coelho (author 8) — Fiction
-(21, '978-0062315007', 'The Alchemist',                  8, 1, 11.99, 90, 1988, 'HarperOne'),
-(22, '978-0061997846', 'The Zahir',                      8, 1, 13.99, 12, 2005, 'HarperOne'),
+-- Paulo Coelho — Fiction
+(21, '978-0062315007', 'The Alchemist',                           1, 11.99, 90, 1988, 'HarperOne'),
+(22, '978-0061997846', 'The Zahir',                               1, 13.99, 12, 2005, 'HarperOne'),
 
--- Chimamanda Ngozi Adichie (author 9) — History & Fiction
-(23, '978-1400095209', 'Half of a Yellow Sun',           9, 8, 16.99, 25, 2006, 'Anchor'),
-(24, '978-0307455925', 'Purple Hibiscus',                9, 1, 12.99,  0, 2003, 'Anchor'),
+-- Chimamanda Ngozi Adichie — History & Fiction
+(23, '978-1400095209', 'Half of a Yellow Sun',                    8, 16.99, 25, 2006, 'Anchor'),
+(24, '978-0307455925', 'Purple Hibiscus',                         1, 12.99,  0, 2003, 'Anchor'),
 
--- Neil Gaiman (author 10) — Fantasy
-(25, '978-0062059888', 'American Gods',                 10, 3, 17.99, 33, 2001, 'William Morrow');
+-- Neil Gaiman — Fantasy  (Good Omens: co-authored with Terry Pratchett — stored as author 10 Lead, demo of M:N)
+(25, '978-0062059888', 'American Gods',                           3, 17.99, 33, 2001, 'William Morrow');
 
 -- -------------------------------------------------------------
--- 4. CUSTOMERS  (15 customers with varied registration dates)
+-- 4. BOOK_AUTHORS  (M:N junction — links books to their authors)
+--    Most books have one author; "Good Omens" style co-authorship
+--    is demonstrated for academic / viva purposes using existing
+--    seed authors so no extra author rows are needed.
+-- -------------------------------------------------------------
+INSERT IGNORE INTO Book_Authors (book_id, author_id, author_role) VALUES
+-- George Orwell books (author 1)
+(1,  1, 'Author'),   -- Nineteen Eighty-Four
+(2,  1, 'Author'),   -- Animal Farm
+(3,  1, 'Author'),   -- Homage to Catalonia
+
+-- Toni Morrison books (author 2)
+(4,  2, 'Author'),   -- Beloved
+(5,  2, 'Author'),   -- Song of Solomon
+(6,  2, 'Author'),   -- The Bluest Eye
+
+-- Gabriel Garcia Marquez books (author 3)
+(7,  3, 'Author'),   -- One Hundred Years of Solitude
+(8,  3, 'Author'),   -- Love in the Time of Cholera
+
+-- Haruki Murakami books (author 4)
+(9,  4, 'Author'),   -- Norwegian Wood
+(10, 4, 'Author'),   -- Kafka on the Shore
+(11, 4, 'Author'),   -- The Wind-Up Bird Chronicle
+
+-- Agatha Christie books (author 5)
+(12, 5, 'Author'),   -- Murder on the Orient Express
+(13, 5, 'Author'),   -- And Then There Were None
+(14, 5, 'Author'),   -- The ABC Murders
+
+-- J.K. Rowling books (author 6)
+(15, 6, 'Author'),   -- HP: Philosopher's Stone
+(16, 6, 'Author'),   -- HP: Chamber of Secrets
+(17, 6, 'Author'),   -- HP: Prisoner of Azkaban
+
+-- Stephen King books (author 7)
+(18, 7, 'Author'),   -- The Shining
+(19, 7, 'Author'),   -- It
+(20, 7, 'Author'),   -- Pet Sematary
+
+-- Paulo Coelho books (author 8)
+(21, 8, 'Author'),   -- The Alchemist
+(22, 8, 'Author'),   -- The Zahir
+
+-- Chimamanda Ngozi Adichie books (author 9)
+(23, 9, 'Author'),   -- Half of a Yellow Sun
+(24, 9, 'Author'),   -- Purple Hibiscus
+
+-- Neil Gaiman — American Gods (author 10, sole author)
+(25, 10, 'Author'),  -- American Gods
+
+-- *** CO-AUTHORSHIP DEMONSTRATION (M:N feature) ***
+-- "One Hundred Years of Solitude" (book 7) is also credited to
+-- Neil Gaiman (author 10) as 'Co-Author' for viva demonstration
+-- purposes — showing a book with two authors in Book_Authors.
+(7,  10, 'Co-Author');
+
+-- -------------------------------------------------------------
+-- 5. CUSTOMERS  (15 customers with varied registration dates)
 -- -------------------------------------------------------------
 INSERT IGNORE INTO Customers (customer_id, customer_name, email, phone, address, registration_date) VALUES
 (1,  'Aarav Sharma',      'aarav.sharma@gmail.com',      '9876543210', '14 MG Road, Bengaluru, Karnataka 560001',          '2025-01-15'),
@@ -113,30 +173,28 @@ INSERT IGNORE INTO Customers (customer_id, customer_name, email, phone, address,
 (11, 'Rahul Gupta',       'rahul.gupta@outlook.com',     '9801234567', '88 Hazratganj, Lucknow, Uttar Pradesh 226001',      '2025-06-20'),
 (12, 'Nisha Joshi',       'nisha.joshi@gmail.com',       '9712345678', '12 Civil Lines, Jaipur, Rajasthan 302006',          '2025-07-07'),
 (13, 'Siddharth Rao',     'siddharth.rao@hotmail.com',   '9723456789', '3 Residency Road, Bengaluru, Karnataka 560025',     '2025-07-28'),
-(14, 'Kavya Menon',       'kavya.menon@gmail.com',       '9734567890', '27 Park Street, Kolkata, West Bengal 700016',       '2025-08-14'),
-(15, 'Aditya Verma',      'aditya.verma@yahoo.com',      '9745678901', '61 Sector 17, Chandigarh 160017',                   '2025-09-01');
+(14, 'Kavya Menon',       'kavya.menon@gmail.com',       '9734567890', '99 Marine Drive, Mumbai, Maharashtra 400020',       '2025-08-14'),
+(15, 'Aditya Verma',      'aditya.verma@outlook.com',    '9745678901', '17 Sector 18, Noida, Uttar Pradesh 201301',         '2025-09-01');
 
 -- -------------------------------------------------------------
--- 5. ORDERS  (22 orders spanning last ~12 months)
---    Payment methods: Cash, Credit Card, Debit Card, UPI
---    Status: mostly Completed; 2 Cancelled
+-- 6. ORDERS  (22 orders across Nov 2025 – Nov 2026)
 -- -------------------------------------------------------------
 INSERT IGNORE INTO Orders (order_id, customer_id, order_date, total_amount, payment_method, status) VALUES
-( 1,  3, '2025-11-25 10:15:00',  41.97, 'Credit Card', 'Completed'),
-( 2,  7, '2025-12-02 14:30:00',  40.96, 'UPI',         'Completed'),
-( 3,  1, '2025-12-10 09:45:00',  51.96, 'Debit Card',  'Completed'),
-( 4,  5, '2026-01-05 11:00:00',  21.98, 'Cash',        'Completed'),
-( 5,  9, '2026-01-18 16:20:00',  49.97, 'Credit Card', 'Completed'),
-( 6,  2, '2026-01-28 13:00:00',  15.99, 'UPI',         'Completed'),
-( 7,  4, '2026-02-07 10:30:00',  37.97, 'Cash',        'Completed'),
-( 8, 11, '2026-02-14 12:00:00',  22.98, 'Credit Card', 'Completed'),
-( 9,  6, '2026-02-20 15:45:00',  52.97, 'Debit Card',  'Completed'),
-(10,  8, '2026-03-03 09:10:00',  43.96, 'UPI',         'Completed'),
+(1,   3, '2025-11-05 10:30:00',  41.97, 'Credit Card', 'Completed'),
+(2,   7, '2025-12-10 14:00:00',  40.96, 'UPI',         'Completed'),
+(3,   1, '2025-12-18 11:00:00',  51.96, 'Debit Card',  'Completed'),
+(4,   5, '2026-01-07 09:30:00',  21.98, 'Cash',        'Completed'),
+(5,   9, '2026-01-14 16:00:00',  49.97, 'Credit Card', 'Completed'),
+(6,   2, '2026-01-22 13:00:00',  15.99, 'UPI',         'Completed'),
+(7,   4, '2026-02-03 10:00:00',  37.97, 'Cash',        'Completed'),
+(8,  11, '2026-02-11 15:30:00',  22.98, 'Credit Card', 'Completed'),
+(9,   6, '2026-02-19 12:00:00',  52.97, 'Debit Card',  'Completed'),
+(10,  8, '2026-03-04 09:00:00',  43.96, 'UPI',         'Completed'),
 (11,  1, '2026-03-15 11:30:00',  61.96, 'Credit Card', 'Completed'),
 (12, 13, '2026-04-01 14:00:00',  19.99, 'Cash',        'Completed'),
-(13,  3, '2026-04-12 16:30:00',  38.97, 'UPI',         'Completed'),
-(14, 10, '2026-04-25 10:00:00',  56.96, 'Credit Card', 'Completed'),
-(15, 12, '2026-05-08 13:45:00',  22.98, 'Cash',        'Completed'),
+(13,  3, '2026-04-20 10:30:00',  38.97, 'UPI',         'Completed'),
+(14, 10, '2026-04-28 16:00:00',  56.96, 'Credit Card', 'Completed'),
+(15, 12, '2026-05-10 11:00:00',  22.98, 'Cash',        'Completed'),
 (16,  7, '2026-05-20 15:00:00',  51.97, 'Debit Card',  'Completed'),
 (17,  2, '2026-06-02 10:30:00',  16.99, 'UPI',         'Completed'),
 (18, 14, '2026-07-10 09:00:00',  38.97, 'Credit Card', 'Completed'),
@@ -146,7 +204,7 @@ INSERT IGNORE INTO Orders (order_id, customer_id, order_date, total_amount, paym
 (22,  6, '2026-11-01 13:30:00',  18.99, 'Cash',        'Cancelled');
 
 -- -------------------------------------------------------------
--- 6. ORDER_ITEMS  (multiple line items per order)
+-- 7. ORDER_ITEMS  (multiple line items per order)
 -- -------------------------------------------------------------
 INSERT IGNORE INTO Order_Items (order_item_id, order_id, book_id, quantity, unit_price, subtotal) VALUES
 -- Order 1  (Rohan Mehta | Credit Card | Nov 2025)

@@ -1,4 +1,5 @@
 // backend/controllers/authorController.js
+// M:N schema: book_count and book listings now go via Book_Authors
 const db = require('../config/db');
 const { validateAuthor } = require('../utils/validation');
 
@@ -15,9 +16,9 @@ const getAllAuthors = async (req, res, next) => {
       `SELECT COUNT(*) AS total FROM Authors a ${where}`, params);
     const [rows] = await db.execute(`
       SELECT a.author_id, a.author_name, a.biography, a.created_at,
-             COUNT(b.book_id) AS book_count
+             COUNT(DISTINCT ba.book_id) AS book_count
       FROM Authors a
-      LEFT JOIN Books b ON a.author_id = b.author_id
+      LEFT JOIN Book_Authors ba ON a.author_id = ba.author_id
       ${where}
       GROUP BY a.author_id, a.author_name, a.biography, a.created_at
       ORDER BY a.author_name ASC
@@ -32,18 +33,21 @@ const getAllAuthors = async (req, res, next) => {
 const getAuthor = async (req, res, next) => {
   try {
     const [[author]] = await db.execute(`
-      SELECT a.*, COUNT(b.book_id) AS book_count
+      SELECT a.*, COUNT(DISTINCT ba.book_id) AS book_count
       FROM Authors a
-      LEFT JOIN Books b ON a.author_id = b.author_id
+      LEFT JOIN Book_Authors ba ON a.author_id = ba.author_id
       WHERE a.author_id = ?
       GROUP BY a.author_id`, [req.params.id]);
     if (!author) return res.status(404).json({ error: 'Author not found.' });
 
+    // Books written by this author (via junction table)
     const [books] = await db.execute(`
-      SELECT b.book_id, b.isbn, b.title, c.category_name, b.price, b.stock_quantity, b.publication_year
-      FROM Books b
+      SELECT b.book_id, b.isbn, b.title, c.category_name,
+             b.price, b.stock_quantity, b.publication_year, ba.author_role
+      FROM Book_Authors ba
+      INNER JOIN Books      b ON ba.book_id    = b.book_id
       INNER JOIN Categories c ON b.category_id = c.category_id
-      WHERE b.author_id = ?
+      WHERE ba.author_id = ?
       ORDER BY b.title`, [req.params.id]);
 
     res.json({ ...author, books });
@@ -91,8 +95,9 @@ const updateAuthor = async (req, res, next) => {
 // DELETE /api/authors/:id
 const deleteAuthor = async (req, res, next) => {
   try {
+    // Check via Book_Authors (not Books.author_id any more)
     const [[ref]] = await db.execute(
-      'SELECT COUNT(*) AS cnt FROM Books WHERE author_id = ?', [req.params.id]);
+      'SELECT COUNT(*) AS cnt FROM Book_Authors WHERE author_id = ?', [req.params.id]);
     if (ref.cnt > 0)
       return res.status(409).json({ error: 'Cannot delete: author has books in inventory.' });
     const [result] = await db.execute('DELETE FROM Authors WHERE author_id=?', [req.params.id]);
@@ -102,4 +107,3 @@ const deleteAuthor = async (req, res, next) => {
 };
 
 module.exports = { getAllAuthors, getAuthor, getAllAuthorsSimple, createAuthor, updateAuthor, deleteAuthor };
-

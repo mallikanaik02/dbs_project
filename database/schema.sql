@@ -2,6 +2,7 @@
 -- Shelf & Co. Bookstore Management System
 -- File: schema.sql
 -- Description: Complete MySQL 8 schema for shelf_and_co database
+--              M:N co-authorship via Book_Authors junction table
 -- =============================================================
 
 -- Drop and recreate database
@@ -32,22 +33,39 @@ CREATE TABLE Categories (
 
 -- -------------------------------------------------------------
 -- Books table
--- Core inventory table; references Authors and Categories
+-- Core inventory table; references Categories only.
+-- NOTE: author_id is NO LONGER stored here.
+--       Authors are linked via the Book_Authors junction table
+--       to support M:N (many-to-many) co-authorship.
 -- -------------------------------------------------------------
 CREATE TABLE Books (
   book_id          INT            PRIMARY KEY AUTO_INCREMENT,
   isbn             VARCHAR(20)    UNIQUE NOT NULL,
   title            VARCHAR(200)   NOT NULL,
-  author_id        INT            NOT NULL,
   category_id      INT            NOT NULL,
   price            DECIMAL(10,2)  NOT NULL CHECK (price > 0),
   stock_quantity   INT            NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
   publication_year INT,
   publisher        VARCHAR(150),
   created_at       TIMESTAMP      DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (author_id)   REFERENCES Authors(author_id)      ON DELETE RESTRICT ON UPDATE CASCADE,
   FOREIGN KEY (category_id) REFERENCES Categories(category_id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
+
+-- -------------------------------------------------------------
+-- Book_Authors junction table  (M:N bridge)
+-- Resolves the Many-to-Many relationship between Books and Authors.
+-- A book can have multiple co-authors; an author can write many books.
+-- Composite Primary Key (book_id, author_id) prevents duplicates.
+-- author_role records the contribution type (Author, Co-Author, Editor…)
+-- -------------------------------------------------------------
+CREATE TABLE Book_Authors (
+  book_id     INT         NOT NULL,
+  author_id   INT         NOT NULL,
+  author_role VARCHAR(50) DEFAULT 'Author',
+  PRIMARY KEY (book_id, author_id),
+  FOREIGN KEY (book_id)   REFERENCES Books(book_id)     ON DELETE CASCADE  ON UPDATE CASCADE,
+  FOREIGN KEY (author_id) REFERENCES Authors(author_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB;
 
 -- -------------------------------------------------------------
 -- Customers table
@@ -95,12 +113,13 @@ CREATE TABLE Order_Items (
 -- -------------------------------------------------------------
 -- Indexes for query performance
 -- -------------------------------------------------------------
-CREATE INDEX idx_books_author      ON Books(author_id);
-CREATE INDEX idx_books_category    ON Books(category_id);
-CREATE INDEX idx_books_title       ON Books(title);
-CREATE INDEX idx_books_isbn        ON Books(isbn);
-CREATE INDEX idx_orders_customer   ON Orders(customer_id);
-CREATE INDEX idx_orders_date       ON Orders(order_date);
-CREATE INDEX idx_order_items_order ON Order_Items(order_id);
-CREATE INDEX idx_order_items_book  ON Order_Items(book_id);
-CREATE INDEX idx_customers_email   ON Customers(email);
+CREATE INDEX idx_books_category       ON Books(category_id);
+CREATE INDEX idx_books_title          ON Books(title);
+CREATE INDEX idx_books_isbn           ON Books(isbn);
+CREATE INDEX idx_book_authors_author  ON Book_Authors(author_id);
+CREATE INDEX idx_book_authors_book    ON Book_Authors(book_id);
+CREATE INDEX idx_orders_customer      ON Orders(customer_id);
+CREATE INDEX idx_orders_date          ON Orders(order_date);
+CREATE INDEX idx_order_items_order    ON Order_Items(order_id);
+CREATE INDEX idx_order_items_book     ON Order_Items(book_id);
+CREATE INDEX idx_customers_email      ON Customers(email);
