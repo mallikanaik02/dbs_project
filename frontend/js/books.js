@@ -198,6 +198,16 @@ async function viewBook(id) {
 
 function openBookForm(book, authors, categories, onSaved) {
   const isEdit = !!book;
+
+  let selectedAuthorIds = [];
+  if (Array.isArray(book?.author_ids) && book.author_ids.length) {
+    selectedAuthorIds = book.author_ids.map(Number).filter(Boolean);
+  } else if (book?.author_ids) {
+    selectedAuthorIds = String(book.author_ids).split(',').map(Number).filter(Boolean);
+  } else if (book?.author_id) {
+    selectedAuthorIds = [Number(book.author_id)];
+  }
+
   const bodyHTML = `
     <form id="bookForm" autocomplete="off">
       <div class="form-row">
@@ -218,11 +228,14 @@ function openBookForm(book, authors, categories, onSaved) {
       </div>
       <div class="form-row">
         <div class="form-group">
-          <label class="form-label">Author *</label>
-          <select class="form-control" id="fAuthor" required>
-            <option value="">Select author…</option>
-            ${authors.map(a => `<option value="${a.author_id}" ${book?.author_id==a.author_id?'selected':''}>${escHtml(a.author_name)}</option>`).join('')}
-          </select>
+          <label class="form-label">Author(s) * <span style="font-weight:normal;color:var(--text-muted);font-size:12px">(Select one or more)</span></label>
+          <div class="author-selector">
+            <div class="selected-author-chips" id="selectedAuthorChips"></div>
+            <select class="form-control" id="fAuthorSelect">
+              <option value="">+ Add an author…</option>
+              ${authors.map(a => `<option value="${a.author_id}">${escHtml(a.author_name)}</option>`).join('')}
+            </select>
+          </div>
           <div class="form-error" id="eAuthor"></div>
         </div>
         <div class="form-group">
@@ -256,11 +269,69 @@ function openBookForm(book, authors, categories, onSaved) {
     <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
     <button class="btn btn-primary" id="btnSaveBook">${isEdit ? 'Save Changes' : 'Add Book'}</button>`, '');
 
+  function renderAuthorChips() {
+    const container = document.getElementById('selectedAuthorChips');
+    if (!container) return;
+    if (selectedAuthorIds.length === 0) {
+      container.innerHTML = '<span style="font-size:12px;color:var(--text-light);font-style:italic">No authors selected. Add an author below.</span>';
+    } else {
+      container.innerHTML = selectedAuthorIds.map(id => {
+        const a = authors.find(x => x.author_id == id);
+        const name = a ? a.author_name : `Author #${id}`;
+        return `
+          <span class="author-chip" data-id="${id}">
+            <span>${escHtml(name)}</span>
+            <button type="button" class="chip-remove" data-id="${id}" title="Remove">&times;</button>
+          </span>`;
+      }).join('');
+
+      container.querySelectorAll('.chip-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          const removeId = parseInt(btn.dataset.id);
+          selectedAuthorIds = selectedAuthorIds.filter(id => id !== removeId);
+          renderAuthorChips();
+          updateAuthorDropdown();
+        });
+      });
+    }
+  }
+
+  function updateAuthorDropdown() {
+    const sel = document.getElementById('fAuthorSelect');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">+ Add an author…</option>' +
+      authors.map(a => {
+        const isSelected = selectedAuthorIds.includes(a.author_id);
+        return `<option value="${a.author_id}" ${isSelected ? 'disabled' : ''}>${escHtml(a.author_name)}${isSelected ? ' (Added)' : ''}</option>`;
+      }).join('');
+    sel.value = '';
+  }
+
+  renderAuthorChips();
+  updateAuthorDropdown();
+
+  document.getElementById('fAuthorSelect').addEventListener('change', (e) => {
+    const val = parseInt(e.target.value);
+    if (val && !selectedAuthorIds.includes(val)) {
+      selectedAuthorIds.push(val);
+      renderAuthorChips();
+      updateAuthorDropdown();
+      document.getElementById('eAuthor').textContent = '';
+    }
+  });
+
   document.getElementById('btnSaveBook').addEventListener('click', async () => {
+    if (selectedAuthorIds.length === 0) {
+      document.getElementById('eAuthor').textContent = 'Please select at least one author.';
+      return;
+    }
+
     const payload = {
       isbn:             document.getElementById('fIsbn').value.trim(),
       title:            document.getElementById('fTitle').value.trim(),
-      author_id:        document.getElementById('fAuthor').value,
+      author_ids:       selectedAuthorIds,
+      author_id:        selectedAuthorIds[0],
       category_id:      document.getElementById('fCategory').value,
       price:            document.getElementById('fPrice').value,
       stock_quantity:   document.getElementById('fStock').value,

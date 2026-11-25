@@ -6,8 +6,19 @@ const validateBook = (data) => {
     errors.push('ISBN is required.');
   if (!data.title || String(data.title).trim() === '')
     errors.push('Title is required.');
-  if (!data.author_id || isNaN(parseInt(data.author_id)))
-    errors.push('A valid author must be selected.');
+
+  // Validate author(s): support author_ids array, comma-separated string, or single author_id
+  let authorIds = [];
+  if (Array.isArray(data.author_ids)) {
+    authorIds = data.author_ids.map(Number).filter(id => !isNaN(id) && id > 0);
+  } else if (data.author_ids) {
+    authorIds = String(data.author_ids).split(',').map(Number).filter(id => !isNaN(id) && id > 0);
+  } else if (data.author_id) {
+    const single = parseInt(data.author_id);
+    if (!isNaN(single) && single > 0) authorIds = [single];
+  }
+  if (authorIds.length === 0)
+    errors.push('At least one author must be selected.');
   if (!data.category_id || isNaN(parseInt(data.category_id)))
     errors.push('A valid category must be selected.');
   const price = parseFloat(data.price);

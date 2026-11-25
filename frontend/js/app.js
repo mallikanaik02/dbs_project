@@ -19,6 +19,7 @@ if (typeof window.lucide === 'undefined') {
 let currentPage = 'overview';
 let modalResolve = null;
 let confirmResolve = null;
+let dashCharts = {};
 
 // ═══ Page Registry ════════════════════════════════════════════
 const pages = {
@@ -32,9 +33,13 @@ const pages = {
 };
 
 // ═══ Router ═══════════════════════════════════════════════════
-function navigate(page) {
+function navigate(page, updateHash = true) {
   if (!pages[page]) return;
   currentPage = page;
+
+  if (updateHash && window.location.hash !== '#' + page) {
+    window.location.hash = page;
+  }
 
   // Update nav
   document.querySelectorAll('.nav-item').forEach(el => {
@@ -378,11 +383,15 @@ function renderDashboardCharts(monthly, catSales, topBooks) {
     console.warn('Chart.js library is not loaded');
     return;
   }
+  // Destroy existing dashboard charts
+  Object.values(dashCharts).forEach(c => { try { c.destroy(); } catch {} });
+  dashCharts = {};
+
   const palette = ['#5C8C6E','#183A32','#C4603A','#8BAA95','#E8C9A0','#2D7A4F','#A05030','#4A7359'];
 
   // Revenue chart
   const ctxR = document.getElementById('chartRevenue')?.getContext('2d');
-  if (ctxR) new Chart(ctxR, {
+  if (ctxR) dashCharts.revenue = new Chart(ctxR, {
     type: 'bar',
     data: {
       labels: monthly.map(m => m.label),
@@ -395,7 +404,7 @@ function renderDashboardCharts(monthly, catSales, topBooks) {
 
   // Orders chart
   const ctxO = document.getElementById('chartOrders')?.getContext('2d');
-  if (ctxO) new Chart(ctxO, {
+  if (ctxO) dashCharts.orders = new Chart(ctxO, {
     type: 'line',
     data: {
       labels: monthly.map(m => m.label),
@@ -408,7 +417,7 @@ function renderDashboardCharts(monthly, catSales, topBooks) {
 
   // Category pie
   const ctxC = document.getElementById('chartCategory')?.getContext('2d');
-  if (ctxC) new Chart(ctxC, {
+  if (ctxC) dashCharts.category = new Chart(ctxC, {
     type: 'doughnut',
     data: {
       labels: catSales.filter(c => c.revenue > 0).map(c => c.category_name),
@@ -421,7 +430,7 @@ function renderDashboardCharts(monthly, catSales, topBooks) {
 
   // Top books horizontal bar
   const ctxT = document.getElementById('chartTopBooks')?.getContext('2d');
-  if (ctxT) new Chart(ctxT, {
+  if (ctxT) dashCharts.topBooks = new Chart(ctxT, {
     type: 'bar',
     data: {
       labels: topBooks.map(b => b.title.length > 20 ? b.title.substring(0,20)+'…' : b.title),
@@ -484,6 +493,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Route from hash or default to overview
   const hash = window.location.hash.replace('#', '');
-  navigate(pages[hash] ? hash : 'overview');
+  navigate(pages[hash] ? hash : 'overview', false);
+
+  window.addEventListener('hashchange', () => {
+    const newHash = window.location.hash.replace('#', '');
+    if (pages[newHash] && newHash !== currentPage) {
+      navigate(newHash, false);
+    }
+  });
 });
 

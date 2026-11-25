@@ -98,7 +98,7 @@ async function viewCategory(id) {
           <thead><tr><th>Title</th><th>Author</th><th>Price</th><th>Stock</th></tr></thead>
           <tbody>${cat.books.map(b => `
             <tr><td class="fw-600">${escHtml(b.title)}</td>
-            <td>${escHtml(b.author_name)}</td>
+            <td>${escHtml(b.authors || b.author_name)}</td>
             <td>${fmtCurrency(b.price)}</td>
             <td>${stockBadge(b.stock_quantity)}</td></tr>`).join('')}
           </tbody></table></div>`

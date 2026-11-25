@@ -58,7 +58,8 @@ const getAllBooks = async (req, res, next) => {
         b.category_id, c.category_name,
         b.price, b.stock_quantity,
         b.publication_year, b.publisher, b.created_at,
-        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+        GROUP_CONCAT(DISTINCT a.author_name ORDER BY a.author_name SEPARATOR ', ') AS authors,
+        GROUP_CONCAT(DISTINCT ba.author_id ORDER BY a.author_name) AS author_ids,
         MIN(ba.author_id) AS author_id
       FROM Books b
       INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
@@ -73,8 +74,13 @@ const getAllBooks = async (req, res, next) => {
     const [[countRow]] = await db.execute(countSql, params);
     const [rows]       = await db.execute(dataSql,  [...params, parseInt(limit), offset]);
 
+    const formattedRows = rows.map(r => ({
+      ...r,
+      author_ids: r.author_ids ? String(r.author_ids).split(',').map(Number) : (r.author_id ? [Number(r.author_id)] : [])
+    }));
+
     res.json({
-      data:       rows,
+      data:       formattedRows,
       total:      countRow.total,
       page:       parseInt(page),
       limit:      parseInt(limit),
@@ -90,7 +96,8 @@ const getBook = async (req, res, next) => {
       SELECT
         b.*,
         c.category_name,
-        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+        GROUP_CONCAT(DISTINCT a.author_name ORDER BY a.author_name SEPARATOR ', ') AS authors,
+        GROUP_CONCAT(DISTINCT ba.author_id ORDER BY a.author_name) AS author_ids,
         MIN(ba.author_id) AS author_id
       FROM Books b
       INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
@@ -99,7 +106,12 @@ const getBook = async (req, res, next) => {
       WHERE b.book_id = ?
       GROUP BY b.book_id, c.category_name`, [req.params.id]);
     if (!rows.length) return res.status(404).json({ error: 'Book not found.' });
-    res.json(rows[0]);
+
+    const book = {
+      ...rows[0],
+      author_ids: rows[0].author_ids ? String(rows[0].author_ids).split(',').map(Number) : (rows[0].author_id ? [Number(rows[0].author_id)] : [])
+    };
+    res.json(book);
   } catch (err) { next(err); }
 };
 
@@ -109,7 +121,17 @@ const createBook = async (req, res, next) => {
     const errors = validateBook(req.body);
     if (errors.length) return res.status(400).json({ errors });
 
-    const { isbn, title, author_id, category_id, price, stock_quantity, publication_year, publisher } = req.body;
+    const { isbn, title, category_id, price, stock_quantity, publication_year, publisher } = req.body;
+
+    let authorIds = [];
+    if (Array.isArray(req.body.author_ids)) {
+      authorIds = req.body.author_ids.map(Number).filter(id => !isNaN(id) && id > 0);
+    } else if (req.body.author_ids) {
+      authorIds = String(req.body.author_ids).split(',').map(Number).filter(id => !isNaN(id) && id > 0);
+    } else if (req.body.author_id) {
+      authorIds = [parseInt(req.body.author_id)].filter(id => !isNaN(id) && id > 0);
+    }
+    authorIds = [...new Set(authorIds)];
 
     // Insert book (no author_id column)
     const [result] = await db.execute(
@@ -119,17 +141,21 @@ const createBook = async (req, res, next) => {
        parseInt(stock_quantity), publication_year || null, publisher || null]
     );
 
-    // Link author via Book_Authors junction table
-    await db.execute(
-      `INSERT INTO Book_Authors (book_id, author_id, author_role) VALUES (?, ?, 'Author')`,
-      [result.insertId, author_id]
-    );
+    // Link authors via Book_Authors junction table
+    for (let i = 0; i < authorIds.length; i++) {
+      const role = i === 0 ? 'Author' : 'Co-Author';
+      await db.execute(
+        `INSERT IGNORE INTO Book_Authors (book_id, author_id, author_role) VALUES (?, ?, ?)`,
+        [result.insertId, authorIds[i], role]
+      );
+    }
 
     const [newBook] = await db.execute(`
       SELECT
         b.*,
         c.category_name,
-        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+        GROUP_CONCAT(DISTINCT a.author_name ORDER BY a.author_name SEPARATOR ', ') AS authors,
+        GROUP_CONCAT(DISTINCT ba.author_id ORDER BY a.author_name) AS author_ids,
         MIN(ba.author_id) AS author_id
       FROM Books b
       INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
@@ -137,7 +163,13 @@ const createBook = async (req, res, next) => {
       INNER JOIN Categories   c  ON b.category_id = c.category_id
       WHERE b.book_id = ?
       GROUP BY b.book_id, c.category_name`, [result.insertId]);
-    res.status(201).json(newBook[0]);
+
+    const bookData = newBook[0] ? {
+      ...newBook[0],
+      author_ids: newBook[0].author_ids ? String(newBook[0].author_ids).split(',').map(Number) : []
+    } : null;
+
+    res.status(201).json(bookData);
   } catch (err) { next(err); }
 };
 
@@ -147,7 +179,17 @@ const updateBook = async (req, res, next) => {
     const errors = validateBook(req.body);
     if (errors.length) return res.status(400).json({ errors });
 
-    const { isbn, title, author_id, category_id, price, stock_quantity, publication_year, publisher } = req.body;
+    const { isbn, title, category_id, price, stock_quantity, publication_year, publisher } = req.body;
+
+    let authorIds = [];
+    if (Array.isArray(req.body.author_ids)) {
+      authorIds = req.body.author_ids.map(Number).filter(id => !isNaN(id) && id > 0);
+    } else if (req.body.author_ids) {
+      authorIds = String(req.body.author_ids).split(',').map(Number).filter(id => !isNaN(id) && id > 0);
+    } else if (req.body.author_id) {
+      authorIds = [parseInt(req.body.author_id)].filter(id => !isNaN(id) && id > 0);
+    }
+    authorIds = [...new Set(authorIds)];
 
     // Update Books table (no author_id column)
     const [result] = await db.execute(
@@ -158,19 +200,22 @@ const updateBook = async (req, res, next) => {
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Book not found.' });
 
-    // Update Book_Authors: replace the primary author entry
-    // (DELETE + INSERT pattern to handle author change cleanly)
+    // Update Book_Authors: replace author entries
     await db.execute('DELETE FROM Book_Authors WHERE book_id = ?', [req.params.id]);
-    await db.execute(
-      `INSERT INTO Book_Authors (book_id, author_id, author_role) VALUES (?, ?, 'Author')`,
-      [req.params.id, author_id]
-    );
+    for (let i = 0; i < authorIds.length; i++) {
+      const role = i === 0 ? 'Author' : 'Co-Author';
+      await db.execute(
+        `INSERT IGNORE INTO Book_Authors (book_id, author_id, author_role) VALUES (?, ?, ?)`,
+        [req.params.id, authorIds[i], role]
+      );
+    }
 
     const [updated] = await db.execute(`
       SELECT
         b.*,
         c.category_name,
-        GROUP_CONCAT(DISTINCT a.author_name SEPARATOR ', ') AS authors,
+        GROUP_CONCAT(DISTINCT a.author_name ORDER BY a.author_name SEPARATOR ', ') AS authors,
+        GROUP_CONCAT(DISTINCT ba.author_id ORDER BY a.author_name) AS author_ids,
         MIN(ba.author_id) AS author_id
       FROM Books b
       INNER JOIN Book_Authors ba ON b.book_id    = ba.book_id
@@ -178,7 +223,13 @@ const updateBook = async (req, res, next) => {
       INNER JOIN Categories   c  ON b.category_id = c.category_id
       WHERE b.book_id = ?
       GROUP BY b.book_id, c.category_name`, [req.params.id]);
-    res.json(updated[0]);
+
+    const bookData = updated[0] ? {
+      ...updated[0],
+      author_ids: updated[0].author_ids ? String(updated[0].author_ids).split(',').map(Number) : []
+    } : null;
+
+    res.json(bookData);
   } catch (err) { next(err); }
 };
 

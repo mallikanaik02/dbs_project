@@ -73,11 +73,14 @@ const getOrder = async (req, res, next) => {
     const [items] = await db.execute(`
       SELECT
         oi.order_item_id, oi.quantity, oi.unit_price, oi.subtotal,
-        b.book_id, b.isbn, b.title, a.author_name
+        b.book_id, b.isbn, b.title,
+        COALESCE(GROUP_CONCAT(a.author_name ORDER BY a.author_name SEPARATOR ', '), 'Unknown') AS author_name
       FROM Order_Items oi
-      INNER JOIN Books b   ON oi.book_id  = b.book_id
-      INNER JOIN Authors a ON b.author_id = a.author_id
+      INNER JOIN Books b         ON oi.book_id  = b.book_id
+      LEFT JOIN Book_Authors ba  ON b.book_id   = ba.book_id
+      LEFT JOIN Authors a        ON ba.author_id = a.author_id
       WHERE oi.order_id = ?
+      GROUP BY oi.order_item_id, oi.quantity, oi.unit_price, oi.subtotal, b.book_id, b.isbn, b.title
       ORDER BY b.title`, [req.params.id]);
 
     res.json({ ...order, items });
@@ -146,11 +149,14 @@ const createOrder = async (req, res, next) => {
       LEFT JOIN Customers cu ON o.customer_id = cu.customer_id
       WHERE o.order_id = ?`, [orderId]);
     const [orderItems] = await db.execute(`
-      SELECT oi.*, b.title, b.isbn, a.author_name
+      SELECT oi.*, b.title, b.isbn,
+             COALESCE(GROUP_CONCAT(a.author_name ORDER BY a.author_name SEPARATOR ', '), 'Unknown') AS author_name
       FROM Order_Items oi
-      INNER JOIN Books b   ON oi.book_id  = b.book_id
-      INNER JOIN Authors a ON b.author_id = a.author_id
-      WHERE oi.order_id = ?`, [orderId]);
+      INNER JOIN Books b         ON oi.book_id   = b.book_id
+      LEFT JOIN Book_Authors ba  ON b.book_id    = ba.book_id
+      LEFT JOIN Authors a        ON ba.author_id  = a.author_id
+      WHERE oi.order_id = ?
+      GROUP BY oi.order_item_id, oi.order_id, oi.book_id, oi.quantity, oi.unit_price, oi.subtotal, b.title, b.isbn`, [orderId]);
 
     res.status(201).json({ ...newOrder, items: orderItems });
   } catch (err) {

@@ -196,10 +196,10 @@ async function openNewSaleModal() {
         if (!data.data?.length) { resultsDiv.innerHTML = '<div class="book-result-item td-muted">No books found.</div>'; }
         else {
           resultsDiv.innerHTML = data.data.map(b => `
-            <div class="book-result-item" data-book='${JSON.stringify({book_id:b.book_id,title:b.title,author_name:b.author_name,price:b.price,stock_quantity:b.stock_quantity})}'>
+            <div class="book-result-item" data-book='${JSON.stringify({book_id:b.book_id,title:b.title,author_name:(b.authors || b.author_name || ''),price:b.price,stock_quantity:b.stock_quantity})}'>
               <div>
                 <div class="book-result-title">${escHtml(b.title)}</div>
-                <div class="book-result-meta">${escHtml(b.author_name)} · <span class="book-result-stock ${b.stock_quantity===0?'stock-out':b.stock_quantity<=5?'stock-low':''}">${b.stock_quantity} in stock</span></div>
+                <div class="book-result-meta">${escHtml(b.authors || b.author_name)} · <span class="book-result-stock ${b.stock_quantity===0?'stock-out':b.stock_quantity<=5?'stock-low':''}">${b.stock_quantity} in stock</span></div>
               </div>
               <span class="book-result-price">${fmtCurrency(b.price)}</span>
             </div>`).join('');
